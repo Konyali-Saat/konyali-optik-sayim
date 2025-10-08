@@ -5,14 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Konyalı Optik - Sayım Sistemi</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles-extended.css">
 </head>
 <body>
     <!-- Header -->
     <header class="header">
         <div class="header-content">
             <h1>📦 Konyalı Optik Sayım</h1>
-            <div class="header-stats">
-                <span id="todayCount">0</span> ürün
+            <div class="header-right">
+                <div class="user-select">
+                    <select id="userSelect" onchange="changeUser()">
+                        <option value="">👤 Kişi Seç</option>
+                        <option value="Ekip A">Ekip A</option>
+                        <option value="Ekip B">Ekip B</option>
+                        <option value="Ekip C">Ekip C</option>
+                    </select>
+                </div>
+                <div class="header-stats">
+                    <span id="todayCount">0</span> ürün
+                </div>
             </div>
         </div>
     </header>
@@ -143,7 +154,32 @@
             </div>
 
             <p class="info-text">Barkod: <strong id="notFoundBarcode">-</strong></p>
-            <p class="info-text">Manuel arama yapın veya atla.</p>
+            <p class="info-text">Manuel arama yapın veya ürün fotoğrafı ekleyip kaydedin.</p>
+
+            <!-- Photo Upload Section -->
+            <div class="photo-section">
+                <label class="photo-label">📷 Ürün Fotoğrafı (Opsiyonel):</label>
+                <input type="file" id="photoInput" accept="image/*" capture="environment" style="display: none;">
+                <button class="btn-secondary" onclick="document.getElementById('photoInput').click()">
+                    📸 Fotoğraf Çek/Seç
+                </button>
+                <div id="photoPreview" style="display: none; margin-top: 10px;">
+                    <img id="photoPreviewImg" style="max-width: 100%; border-radius: 8px;">
+                    <button class="btn-small btn-cancel" onclick="removePhoto()" style="margin-top: 5px;">
+                        ✗ Kaldır
+                    </button>
+                </div>
+            </div>
+
+            <!-- Notes Section -->
+            <div class="notes-section">
+                <label class="notes-label">📝 Notlar (Opsiyonel):</label>
+                <textarea
+                    id="notesInput"
+                    placeholder="Ürün özelliklerini yazın (renk, ekartman, sap üzerindeki kodlar vb.)"
+                    rows="3"
+                ></textarea>
+            </div>
 
             <div class="action-buttons">
                 <button class="btn-large btn-secondary" onclick="focusManuel()">
@@ -153,7 +189,26 @@
                     💾 BULUNAMADI OLARAK KAYDET
                 </button>
                 <button class="btn-large btn-cancel" onclick="skipProduct()">
-                    ⏭️ ATLA
+                    ⏭️ ATLA (KAYDET)
+                </button>
+            </div>
+        </section>
+
+        <!-- Success Toast (After Save) -->
+        <section id="successToast" class="result-box success" style="display: none;">
+            <div class="result-header">
+                <span class="icon">✅</span>
+                <h2>KAYDEDİLDİ!</h2>
+            </div>
+
+            <p class="info-text">Ürün başarıyla kaydedildi.</p>
+
+            <div class="action-buttons">
+                <button class="btn-large btn-primary" onclick="repeatSameProduct()">
+                    🔁 AYNI ÜRÜNÜ TEKRAR SAY
+                </button>
+                <button class="btn-large btn-secondary" onclick="resetForm()">
+                    ➡️ SONRAKİ ÜRÜN
                 </button>
             </div>
         </section>
@@ -171,6 +226,18 @@
             <div class="stat-item">
                 <div class="stat-value" id="statOran">0%</div>
                 <div class="stat-label">Başarı</div>
+            </div>
+        </div>
+
+        <!-- Leaderboard -->
+        <div class="leaderboard" id="leaderboard" style="display: none;">
+            <h3>🏆 BUGÜNÜN LİDERLERİ</h3>
+            <div id="leaderboardList">
+                <!-- Dinamik olarak doldurulacak -->
+            </div>
+            <div class="leaderboard-footer">
+                <span id="totalProgress">0 / 12,000</span>
+                <span class="progress-label">Toplam İlerleme</span>
             </div>
         </div>
     </main>
@@ -216,5 +283,6 @@
     </div>
 
     <script src="app.js"></script>
+    <script src="app-extended.js"></script>
 </body>
 </html>

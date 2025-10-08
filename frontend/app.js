@@ -132,6 +132,11 @@ function showSuccessResult(product, confidence) {
     hideAllResults();
     currentProduct = product;
 
+    // Store confidence for extended features
+    if (typeof currentConfidence !== 'undefined') {
+        window.currentConfidence = confidence;
+    }
+
     document.getElementById('resSku').textContent = product.sku || '-';
     document.getElementById('resMarka').textContent = product.marka || '-';
     document.getElementById('resKategori').textContent = getCategoryName(product.kategori);
@@ -207,7 +212,12 @@ async function saveSelectedCandidate() {
         return;
     }
 
-    await saveCount(selectedCandidateId, 'Belirsiz', selectedTedarikciKaydiId);
+    // Use enhanced save if available, fallback to basic
+    if (typeof saveCountEnhanced !== 'undefined') {
+        await saveCountEnhanced(selectedCandidateId, 'Belirsiz', selectedTedarikciKaydiId);
+    } else {
+        await saveCount(selectedCandidateId, 'Belirsiz', selectedTedarikciKaydiId);
+    }
 }
 
 // ========== SAVE COUNT ==========
@@ -215,13 +225,31 @@ async function confirmAndSave() {
     if (!currentProduct) return;
 
     const skuId = currentProduct.id;
-    await saveCount(skuId, 'Direkt', currentTedarikciKaydiId);
+    let eslesmeDurumu = 'Direkt';
+
+    // If barcode is empty, it's a manual search confirmation
+    if (!currentBarcodeSearched) {
+        currentBarcodeSearched = document.getElementById('manuelInput').value.trim() || 'manuel'; // Use search term or 'manuel' as placeholder
+        eslesmeDurumu = 'Manuel';
+    }
+
+    // Use enhanced save if available, fallback to basic
+    if (typeof saveCountEnhanced !== 'undefined') {
+        await saveCountEnhanced(skuId, eslesmeDurumu, currentTedarikciKaydiId);
+    } else {
+        await saveCount(skuId, eslesmeDurumu, currentTedarikciKaydiId);
+    }
 }
 
 async function saveNotFound() {
     if (!currentBarcodeSearched) return;
 
-    await saveCount(null, 'Bulunamadı', null);
+    // Use enhanced save if available, fallback to basic
+    if (typeof saveCountEnhanced !== 'undefined') {
+        await saveCountEnhanced(null, 'Bulunamadı', null);
+    } else {
+        await saveCount(null, 'Bulunamadı', null);
+    }
 }
 
 async function saveCount(skuId, eslesme, tedarikciKaydiId) {
@@ -304,7 +332,12 @@ function focusManuel() {
 }
 
 function skipProduct() {
-    resetForm();
+    // Use skipAndSave if available (creates record), fallback to resetForm
+    if (typeof skipAndSave !== 'undefined') {
+        skipAndSave();
+    } else {
+        resetForm();
+    }
 }
 
 // ========== CONTEXT MANAGEMENT ==========

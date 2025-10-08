@@ -10,6 +10,8 @@ from matcher import BarcodeMatcher
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+from werkzeug.utils import secure_filename
+import base64
 
 load_dotenv()
 
@@ -184,16 +186,15 @@ def save_count():
     if data.get('notlar'):
         record_data['Notlar'] = data['notlar']
 
+
     # Durum
-    if eslesme_durumu == 'Direkt':
-        record_data['Durum'] = 'Tamamlandı'
-        record_data['Onay_Durumu'] = True
+
     elif eslesme_durumu == 'Belirsiz':
         record_data['Durum'] = 'Tamamlandı'
-        record_data['Onay_Durumu'] = True
+
     else:  # Bulunamadı
-        record_data['Durum'] = 'İnceleme Gerekli'
-        record_data['Onay_Durumu'] = False
+        record_data['Durum'] = 'Beklemede'
+
 
     # Kaydet
     result = airtable.create_sayim_record(record_data)
@@ -336,6 +337,147 @@ def get_stats():
             'stats': stats
         })
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/upload-photo', methods=['POST'])
+def upload_photo():
+    """
+    Fotoğraf upload endpoint
+
+    Request: multipart/form-data
+        - photo: file
+        - record_id: string (Sayim_Kayitlari record ID)
+
+    Response:
+        {
+            "success": bool,
+            "url": string (optional)
+        }
+    """
+    if not airtable:
+        return jsonify({'error': 'Sistem başlatılamadı'}), 503
+
+    if 'photo' not in request.files:
+        return jsonify({'error': 'Fotoğraf bulunamadı'}), 400
+
+    photo = request.files['photo']
+    record_id = request.form.get('record_id')
+
+    if not record_id:
+        return jsonify({'error': 'record_id gerekli'}), 400
+
+    if photo.filename == '':
+        return jsonify({'error': 'Dosya seçilmedi'}), 400
+
+    try:
+        # Fotoğrafı base64'e çevir
+        photo_data = photo.read()
+        photo_base64 = base64.b64encode(photo_data).decode('utf-8')
+
+        # Airtable'a attachment olarak gönder
+        filename = secure_filename(photo.filename)
+
+        # Airtable attachment format
+        attachment = [{
+            "url": f"data:image/jpeg;base64,{photo_base64}",
+            "filename": filename
+        }]
+
+        # Sayım kaydını güncelle
+        airtable.sayim_kayitlari.update(record_id, {
+            'Fotograf': attachment
+        })
+
+        return jsonify({
+            'success': True,
+            'message': 'Fotoğraf yüklendi'
+        })
+
+    except Exception as e:
+        print(f"HATA: Fotograf yukleme hatasi: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/leaderboard', methods=['GET'])
+def leaderboard():
+    """
+    Leaderboard - kişi bazlı sayım istatistikleri
+
+    Response:
+        {
+            "success": bool,
+            "leaderboard": [
+                {
+                    "name": string,
+                    "count": int
+                }
+            ],
+            "total": int
+        }
+    """
+    if not airtable:
+        return jsonify({'error': 'Sistem başlatılamadı'}), 503
+
+    try:
+        # Tüm sayım kayıtlarını al
+        records = airtable.sayim_kayitlari.all()
+
+        # Kişi bazlı sayımları topla
+        person_counts = {}
+        total_count = 0
+
+        for record in records:
+            fields = record['fields']
+            person_raw = fields.get('Sayim_Yapan')
+
+            # Handle different Sayim_Yapan formats
+            if not person_raw:
+                person = 'Bilinmeyen'
+            elif isinstance(person_raw, str):
+                person = person_raw
+            elif isinstance(person_raw, list) and len(person_raw) > 0:
+                # If it's a list, get the first item
+                first_item = person_raw[0]
+                if isinstance(first_item, str):
+                    person = first_item
+                elif isinstance(first_item, dict):
+                    # Airtable linked record: {'id': 'recXXX', 'name': 'Ekip A'}
+                    person = first_item.get('name', 'Bilinmeyen')
+                else:
+                    person = 'Bilinmeyen'
+            else:
+                person = 'Bilinmeyen'
+
+            if person not in person_counts:
+                person_counts[person] = 0
+
+            person_counts[person] += 1
+            total_count += 1
+
+        # Listeye çevir ve sırala
+        leaderboard_list = [
+            {'name': name, 'count': count}
+            for name, count in person_counts.items()
+            if name != 'Bilinmeyen'  # Bilinmeyen hariç
+        ]
+
+        leaderboard_list.sort(key=lambda x: x['count'], reverse=True)
+
+        return jsonify({
+            'success': True,
+            'leaderboard': leaderboard_list,
+            'total': total_count
+        })
+
+    except Exception as e:
+        print(f"HATA: Leaderboard hatasi: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

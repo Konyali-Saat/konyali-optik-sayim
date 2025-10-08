@@ -45,8 +45,12 @@ class AirtableClient:
             List[Dict]: Bulunan tedarikçi kayıtları
         """
         try:
-            # Airtable formula ile arama
+            # Barkodu hem metin hem de sayı olarak aramayı dene
+            # Bu, Airtable'daki alanın formatı (Metin veya Sayı) ne olursa olsun eşleşmeyi sağlar
             formula = f"{{Tedarikci_Barkodu}} = '{barkod}'"
+            if barkod.isnumeric():
+                formula = f"OR({{Tedarikci_Barkodu}} = '{barkod}', {{Tedarikci_Barkodu}} = {barkod})"
+
             results = self.tedarikci_liste.all(formula=formula)
             return results
         except Exception as e:
@@ -119,13 +123,13 @@ class AirtableClient:
             search_conditions = []
 
             # Arama terimi - birden fazla alanda ara
-            term_lower = search_term.lower()
+            term_lower = search_term.lower().replace("'", "\'")
             search_conditions.append(
                 f"OR("
-                f"FIND('{search_term}', {{Model_Kodu}}), "
-                f"FIND('{search_term}', {{Model_Adi}}), "
-                f"FIND('{search_term}', {{Renk_Kodu}}), "
-                f"FIND('{search_term}', {{SKU}})"
+                f"SEARCH('{term_lower}', LOWER({{Model_Kodu}})), "
+                f"SEARCH('{term_lower}', LOWER({{Model_Adi}})), "
+                f"SEARCH('{term_lower}', LOWER({{Renk_Kodu}})), "
+                f"SEARCH('{term_lower}', LOWER({{SKU}}))"
                 f")"
             )
 
