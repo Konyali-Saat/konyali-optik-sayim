@@ -15,7 +15,7 @@ import base64
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='../frontend')
+app = Flask(__name__, static_folder='frontend')
 
 # CORS ayarları
 allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
