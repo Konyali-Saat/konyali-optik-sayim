@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Konyalı Optik - Sayım Sistemi</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <h1>📦 Konyalı Optik Sayım</h1>
+            <div class="header-stats">
+                <span id="todayCount">0</span> ürün
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="container">
+        <!-- Context Selection -->
+        <div class="context-bar" id="contextBar">
+            <button class="btn-context" onclick="openContextModal()">
+                <span id="contextText">🎯 Bağlam Seç</span>
+            </button>
+        </div>
+
+        <!-- Search Section -->
+        <section class="search-section">
+            <div class="input-group">
+                <label>Barkod Okutun:</label>
+                <input
+                    type="text"
+                    id="barkodInput"
+                    placeholder="8056597412261"
+                    autofocus
+                    autocomplete="off"
+                >
+                <button class="btn-primary" onclick="searchBarcode()">
+                    🔍 ARA
+                </button>
+            </div>
+
+            <div class="divider">veya</div>
+
+            <div class="input-group">
+                <label>Manuel Ara:</label>
+                <input
+                    type="text"
+                    id="manuelInput"
+                    placeholder="Model kodu (örn: 2140)"
+                    autocomplete="off"
+                >
+                <button class="btn-secondary" onclick="manuelSearch()">
+                    🔎 MANUEL ARA
+                </button>
+            </div>
+        </section>
+
+        <!-- Loading -->
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Aranıyor...</p>
+        </div>
+
+        <!-- Result: Success -->
+        <section id="resultSuccess" class="result-box success" style="display: none;">
+            <div class="result-header">
+                <span class="icon">✅</span>
+                <h2>ÜRÜN BULUNDU!</h2>
+            </div>
+
+            <div class="product-card">
+                <div class="product-row">
+                    <span class="label">SKU:</span>
+                    <span class="value" id="resSku">-</span>
+                </div>
+                <div class="product-row">
+                    <span class="label">Marka:</span>
+                    <span class="value" id="resMarka">-</span>
+                </div>
+                <div class="product-row">
+                    <span class="label">Kategori:</span>
+                    <span class="value" id="resKategori">-</span>
+                </div>
+                <div class="product-row">
+                    <span class="label">Model:</span>
+                    <span class="value" id="resModel">-</span>
+                </div>
+                <div class="product-row">
+                    <span class="label">Renk:</span>
+                    <span class="value" id="resRenk">-</span>
+                </div>
+                <div class="product-row">
+                    <span class="label">Ekartman:</span>
+                    <span class="value" id="resEkartman">-</span>
+                </div>
+                <div class="product-row confidence">
+                    <span class="label">Güven:</span>
+                    <span class="value" id="resConfidence">-</span>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn-large btn-confirm" onclick="confirmAndSave()">
+                    ✓ ONAYLA VE KAYDET
+                </button>
+                <button class="btn-large btn-cancel" onclick="resetForm()">
+                    ✗ YANLIŞ
+                </button>
+            </div>
+        </section>
+
+        <!-- Result: Multiple Candidates -->
+        <section id="resultMultiple" class="result-box warning" style="display: none;">
+            <div class="result-header">
+                <span class="icon">⚠️</span>
+                <h2>ÇOKLU SONUÇ</h2>
+            </div>
+
+            <p class="info-text">Hangisi doğru?</p>
+
+            <div id="candidateList" class="candidate-list">
+                <!-- Dinamik olarak doldurulacak -->
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn-large btn-confirm" onclick="saveSelectedCandidate()">
+                    ✓ SEÇİLENİ KAYDET
+                </button>
+                <button class="btn-large btn-cancel" onclick="resetForm()">
+                    ✗ İPTAL
+                </button>
+            </div>
+        </section>
+
+        <!-- Result: Not Found -->
+        <section id="resultNotFound" class="result-box error" style="display: none;">
+            <div class="result-header">
+                <span class="icon">❌</span>
+                <h2>BULUNAMADI</h2>
+            </div>
+
+            <p class="info-text">Barkod: <strong id="notFoundBarcode">-</strong></p>
+            <p class="info-text">Manuel arama yapın veya atla.</p>
+
+            <div class="action-buttons">
+                <button class="btn-large btn-secondary" onclick="focusManuel()">
+                    🔎 MANUEL ARA
+                </button>
+                <button class="btn-large btn-warning" onclick="saveNotFound()">
+                    💾 BULUNAMADI OLARAK KAYDET
+                </button>
+                <button class="btn-large btn-cancel" onclick="skipProduct()">
+                    ⏭️ ATLA
+                </button>
+            </div>
+        </section>
+
+        <!-- Stats Footer -->
+        <div class="stats-footer">
+            <div class="stat-item">
+                <div class="stat-value" id="statTotal">0</div>
+                <div class="stat-label">Toplam</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="statDirekt">0</div>
+                <div class="stat-label">Direkt</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="statOran">0%</div>
+                <div class="stat-label">Başarı</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Context Modal -->
+    <div id="contextModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🎯 Bağlam Seç</h2>
+                <button class="modal-close" onclick="closeContextModal()">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Marka:</label>
+                    <select id="contextBrand">
+                        <option value="">Tümü</option>
+                        <!-- Dinamik olarak doldurulacak -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Kategori:</label>
+                    <select id="contextCategory">
+                        <option value="">Tümü</option>
+                        <option value="OF">Optik Çerçeve</option>
+                        <option value="GN">Güneş Gözlüğü</option>
+                        <option value="CM">Gözlük Camı</option>
+                        <option value="LN">Lens</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="applyContext()">
+                    ✓ UYGULA
+                </button>
+                <button class="btn-secondary" onclick="clearContext()">
+                    🗑️ TEMİZLE
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
