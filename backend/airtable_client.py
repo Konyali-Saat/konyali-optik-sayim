@@ -54,7 +54,7 @@ class AirtableClient:
             results = self.tedarikci_liste.all(formula=formula)
             return results
         except Exception as e:
-            print(f"❌ Barkod arama hatası: {e}")
+            print(f"HATA: Barkod arama hatası: {e}")
             return []
 
     def fuzzy_search_barcode(self, barkod: str, min_length: int = 10) -> List[Dict[str, Any]]:
@@ -78,7 +78,7 @@ class AirtableClient:
             results = self.tedarikci_liste.all(formula=formula)
             return results
         except Exception as e:
-            print(f"❌ Fuzzy arama hatası: {e}")
+            print(f"HATA: Fuzzy arama hatası: {e}")
             return []
 
     # ========== SKU İŞLEMLERİ ==========
@@ -97,7 +97,7 @@ class AirtableClient:
             record = self.master_sku.get(sku_record_id)
             return record['fields']
         except Exception as e:
-            print(f"❌ SKU detay hatası: {e}")
+            print(f"HATA: SKU detay hatası: {e}")
             return None
 
     def search_sku_by_term(
@@ -148,7 +148,7 @@ class AirtableClient:
             return results
 
         except Exception as e:
-            print(f"❌ Manuel arama hatası: {e}")
+            print(f"HATA: Manuel arama hatası: {e}")
             return []
 
     # ========== SAYIM KAYDI ==========
@@ -179,7 +179,7 @@ class AirtableClient:
                 'data': record['fields']
             }
         except Exception as e:
-            print(f"❌ Sayım kaydı oluşturma hatası: {e}")
+            print(f"HATA: Sayım kaydı oluşturma hatası: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -204,7 +204,7 @@ class AirtableClient:
                 'data': record['fields']
             }
         except Exception as e:
-            print(f"❌ Sayım kaydı güncelleme hatası: {e}")
+            print(f"HATA: Sayım kaydı güncelleme hatası: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -249,7 +249,7 @@ class AirtableClient:
             }
 
         except Exception as e:
-            print(f"❌ İstatistik hatası: {e}")
+            print(f"HATA: İstatistik hatası: {e}")
             return {
                 'total': 0,
                 'direkt': 0,
@@ -287,7 +287,7 @@ class AirtableClient:
             return brands
 
         except Exception as e:
-            print(f"❌ Marka listesi hatası: {e}")
+            print(f"HATA: Marka listesi hatası: {e}")
             return []
 
     # ========== YARDIMCI FONKSİYONLAR ==========
@@ -304,31 +304,31 @@ class AirtableClient:
             self.markalar.first()
             return True
         except Exception as e:
-            print(f"❌ Health check başarısız: {e}")
+            print(f"HATA: Health check başarısız: {e}")
             return False
 
 
 # Test için
 if __name__ == "__main__":
-    print("🔧 Airtable Client Test\n")
+    print("[TEST] Airtable Client Test\n")
 
     try:
         client = AirtableClient()
-        print("✅ Bağlantı başarılı!")
+        print("OK: Bağlantı başarılı!")
 
         # Health check
         if client.health_check():
-            print("✅ Health check OK")
+            print("OK: Health check OK")
 
         # Markalar
         brands = client.get_all_brands()
-        print(f"✅ {len(brands)} marka bulundu")
+        print(f"OK: {len(brands)} marka bulundu")
         if brands:
             print(f"   Örnek: {brands[0]['ad']}")
 
         # İstatistikler
         stats = client.get_today_stats()
-        print(f"✅ Bugün {stats['total']} ürün sayıldı")
+        print(f"OK: Bugün {stats['total']} ürün sayıldı")
 
     except Exception as e:
-        print(f"❌ Test başarısız: {e}")
+        print(f"HATA: Test başarısız: {e}")

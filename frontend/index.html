@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Konyalı Optik - Sayım Sistemi</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="styles-extended.css">
 </head>
 <body>
     <!-- Header -->
@@ -113,6 +112,18 @@
                 </div>
             </div>
 
+            <!-- UTS QR Input -->
+            <div class="uts-input-section" style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: bold; color: #333;">
+                    📦 UTS QR Kodu:
+                </label>
+                <input type="text"
+                       id="utsQrInput"
+                       placeholder="UTS QR kodunu okutun veya girin..."
+                       style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px;"
+                       onkeypress="if(event.key === 'Enter') confirmAndSave()">
+            </div>
+
             <div class="action-buttons">
                 <button class="btn-large btn-confirm" onclick="confirmAndSave()">
                     ✓ ONAYLA VE KAYDET
@@ -134,6 +145,18 @@
 
             <div id="candidateList" class="candidate-list">
                 <!-- Dinamik olarak doldurulacak -->
+            </div>
+
+            <!-- UTS QR Input for Multiple Results -->
+            <div class="uts-input-section" style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: bold; color: #333;">
+                    📦 UTS QR Kodu:
+                </label>
+                <input type="text"
+                       id="utsQrInputMultiple"
+                       placeholder="UTS QR kodunu okutun veya girin..."
+                       style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px;"
+                       onkeypress="if(event.key === 'Enter') saveSelectedCandidate()">
             </div>
 
             <div class="action-buttons">
@@ -283,6 +306,5 @@
     </div>
 
     <script src="app.js"></script>
-    <script src="app-extended.js"></script>
 </body>
 </html>

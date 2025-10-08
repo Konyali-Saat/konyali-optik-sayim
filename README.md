@@ -233,19 +233,22 @@ curl http://localhost:5000/api/stats
 
 ## 🚢 Deployment
 
-Detaylı deployment rehberi için: **[DEPLOYMENT.md](./DEPLOYMENT.md)**
+**ÖNEMLİ:** Deployment komutunu projenin ana dizininde (`konyali-optik-sayim` klasöründe) çalıştırdığınızdan emin olun. `backend` klasörüne girmeyin.
 
-Özet:
 ```bash
-cd backend
+# Projenin ana dizininde olduğunuzdan emin olun.
+# Make sure you are in the main directory of the project.
 
 # Cloud Run'a deploy
 gcloud run deploy konyali-optik-sayim \
   --source . \
   --region europe-west1 \
   --allow-unauthenticated \
-  --set-env-vars AIRTABLE_TOKEN=xxx,AIRTABLE_BASE_ID=xxx
+  --project <PROJE_ID> \
+  --set-env-vars AIRTABLE_TOKEN=<AIRTABLE_TOKEN>,AIRTABLE_BASE_ID=<AIRTABLE_BASE_ID>
 ```
+
+**Not:** `DEPLOYMENT.md` dosyası güncel değildir. Lütfen bu bölümdeki komutları kullanın.
 
 ## 🔒 Güvenlik
 

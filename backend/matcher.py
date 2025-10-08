@@ -346,7 +346,7 @@ class BarcodeMatcher:
 
 # Test için
 if __name__ == "__main__":
-    print("🔧 Barkod Matcher Test\n")
+    print("[TEST] Barkod Matcher Test\n")
 
     try:
         from airtable_client import AirtableClient
@@ -354,7 +354,7 @@ if __name__ == "__main__":
         client = AirtableClient()
         matcher = BarcodeMatcher(client)
 
-        print("✅ Matcher başlatıldı!")
+        print("OK: Matcher başlatıldı!")
         print("\n📝 Test barkodu girin (veya 'q' ile çık):")
 
         while True:
@@ -381,7 +381,7 @@ if __name__ == "__main__":
                 print(f"   Ekartman: {p['ekartman']}")
 
             if result.get('candidates'):
-                print(f"\n⚠️ {len(result['candidates'])} aday bulundu")
+                print(f"\nUYARI: {len(result['candidates'])} aday bulundu")
 
     except Exception as e:
-        print(f"❌ Test başarısız: {e}")
+        print(f"HATA: Test başarısız: {e}")

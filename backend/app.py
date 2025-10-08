@@ -15,7 +15,7 @@ import base64
 
 load_dotenv()
 
-app = Flask(__name__, static_folder='frontend')
+app = Flask(__name__, static_folder='../frontend')
 
 # CORS ayarları
 allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
@@ -186,14 +186,17 @@ def save_count():
     if data.get('notlar'):
         record_data['Notlar'] = data['notlar']
 
+    # UTS QR Kodu
+    if data.get('uts_qr'):
+        record_data['Okutulan_UTS_QR'] = data['uts_qr']
 
-    # Durum
+    # Sayım yapan kişi/ekip
+    # Not: Sayim_Yapan computed field olduğu için Sayan Ekip field'ına yazıyoruz
+    if data.get('sayim_yapan'):
+        record_data['Sayan Ekip'] = data['sayim_yapan']
 
-    elif eslesme_durumu == 'Belirsiz':
-        record_data['Durum'] = 'Tamamlandı'
-
-    else:  # Bulunamadı
-        record_data['Durum'] = 'Beklemede'
+    # Durum field'ını şimdilik kullanmayalım
+    # Airtable'da seçenekler tanımlı değil
 
 
     # Kaydet

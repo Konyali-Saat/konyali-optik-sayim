@@ -11,10 +11,14 @@ let selectedTedarikciKaydiId = null;
 let contextBrand = null;
 let contextCategory = null;
 let allCandidates = [];
+let currentUser = null;  // Seçili kullanıcı/ekip
 
 // ========== INIT ==========
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Konyalı Optik Sayım Sistemi başlatıldı');
+
+    // Kullanıcıyı yükle
+    loadSavedUser();
 
     // Enter tuşları
     document.getElementById('barkodInput').addEventListener('keypress', (e) => {
@@ -212,6 +216,11 @@ async function saveSelectedCandidate() {
         return;
     }
 
+    // Manuel arama sonucuysa barkod alanını doldur
+    if (!currentBarcodeSearched) {
+        currentBarcodeSearched = document.getElementById('manuelInput').value.trim() || 'manuel-arama';
+    }
+
     // Use enhanced save if available, fallback to basic
     if (typeof saveCountEnhanced !== 'undefined') {
         await saveCountEnhanced(selectedCandidateId, 'Belirsiz', selectedTedarikciKaydiId);
@@ -286,6 +295,21 @@ async function saveCount(skuId, eslesme, tedarikciKaydiId) {
             payload.manuel_arama_terimi = manuelTerm;
         }
 
+        // UTS QR Kodu - hem single hem multiple input'tan kontrol et
+        let utsQrInput = document.getElementById('utsQrInput');
+        if (!utsQrInput || !utsQrInput.value.trim()) {
+            // Multiple result ekranındaki input'u kontrol et
+            utsQrInput = document.getElementById('utsQrInputMultiple');
+        }
+        if (utsQrInput && utsQrInput.value.trim()) {
+            payload.uts_qr = utsQrInput.value.trim();
+        }
+
+        // Ekip/Kullanıcı bilgisi
+        if (currentUser) {
+            payload.sayim_yapan = currentUser;
+        }
+
         const response = await fetch(`${API_URL}/api/save-count`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -296,11 +320,18 @@ async function saveCount(skuId, eslesme, tedarikciKaydiId) {
         hideLoading();
 
         if (data.success) {
-            // Başarı mesajı
+            // Son kaydedilen ürünü sakla (tekrar say için)
+            if (currentProduct) {
+                lastSavedProduct = {
+                    product: currentProduct,
+                    confidence: window.currentConfidence || 100
+                };
+            }
+
+            // Başarı mesajı göster
             showSuccessToast();
 
-            // Form temizle ve sonraki ürüne geç
-            resetForm();
+            // Stats güncelle (form temizleme olmadan)
             loadStats();
         } else {
             alert('Kayıt hatası: ' + data.error);
@@ -313,10 +344,63 @@ async function saveCount(skuId, eslesme, tedarikciKaydiId) {
     }
 }
 
+// ========== USER MANAGEMENT ==========
+function changeUser() {
+    const select = document.getElementById('userSelect');
+    currentUser = select.value;
+
+    // LocalStorage'a kaydet
+    if (currentUser) {
+        localStorage.setItem('selectedUser', currentUser);
+    } else {
+        localStorage.removeItem('selectedUser');
+    }
+}
+
+function loadSavedUser() {
+    // Sayfa yüklendiğinde kullanıcıyı hatırla
+    const savedUser = localStorage.getItem('selectedUser');
+    if (savedUser) {
+        currentUser = savedUser;
+        const select = document.getElementById('userSelect');
+        if (select) {
+            select.value = savedUser;
+        }
+    }
+}
+
 // ========== RESET & NAVIGATION ==========
+let lastSavedProduct = null;  // Son kaydedilen ürünü tutar
+
+function repeatSameProduct() {
+    // Son kaydedilen ürünü tekrar göster
+    if (lastSavedProduct) {
+        hideAllResults();
+        showSuccessResult(lastSavedProduct.product, lastSavedProduct.confidence);
+        // UTS input'larını temizle
+        const utsInput = document.getElementById('utsQrInput');
+        if (utsInput) utsInput.value = '';
+        const utsInputMultiple = document.getElementById('utsQrInputMultiple');
+        if (utsInputMultiple) utsInputMultiple.value = '';
+    } else {
+        alert('Tekrar sayılacak ürün bilgisi yok!');
+    }
+}
+
 function resetForm() {
     document.getElementById('barkodInput').value = '';
     document.getElementById('manuelInput').value = '';
+
+    // UTS input'ları temizle (hem single hem multiple)
+    const utsInput = document.getElementById('utsQrInput');
+    if (utsInput) {
+        utsInput.value = '';
+    }
+    const utsInputMultiple = document.getElementById('utsQrInputMultiple');
+    if (utsInputMultiple) {
+        utsInputMultiple.value = '';
+    }
+
     hideAllResults();
     currentProduct = null;
     currentBarcodeSearched = '';
@@ -440,7 +524,15 @@ function getCategoryName(code) {
 }
 
 function showSuccessToast() {
-    // Basit başarı animasyonu
+    // HTML'deki success toast section'ını göster
+    const successSection = document.getElementById('successToast');
+    if (successSection) {
+        hideAllResults();
+        successSection.style.display = 'block';
+        return;
+    }
+
+    // Fallback: Basit başarı animasyonu
     const toast = document.createElement('div');
     toast.textContent = '✅ Kaydedildi!';
     toast.style.cssText = `
