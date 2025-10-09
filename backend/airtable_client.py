@@ -267,25 +267,26 @@ class AirtableClient:
 
     def get_all_brands(self) -> List[Dict[str, Any]]:
         """
-        Aktif markaları listele
+        Tüm markaları listele
 
         Returns:
             List[Dict]: {id, kod, ad, kategori}
         """
         try:
-            # Aktif markaları çek
-            formula = "{Aktif} = TRUE()"
-            records = self.markalar.all(formula=formula)
+            # Tüm markaları çek (formül olmadan)
+            records = self.markalar.all()
 
             brands = []
             for record in records:
                 fields = record['fields']
-                brands.append({
-                    'id': record['id'],
-                    'kod': fields.get('Marka_Kodu', ''),
-                    'ad': fields.get('Marka_Adi', ''),
-                    'kategori': fields.get('Kategori', [])
-                })
+                # Sadece Marka_Adi olan kayıtları al
+                if fields.get('Marka_Adi'):
+                    brands.append({
+                        'id': record['id'],
+                        'kod': fields.get('Marka_Kodu', ''),
+                        'ad': fields.get('Marka_Adi', ''),
+                        'kategori': fields.get('Kategori', [])
+                    })
 
             # Marka adına göre sırala
             brands.sort(key=lambda x: x['ad'])
