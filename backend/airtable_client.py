@@ -122,14 +122,16 @@ class AirtableClient:
             # Arama formülü oluştur
             search_conditions = []
 
-            # Arama terimi - birden fazla alanda ara
-            term_lower = search_term.lower().replace("'", "\'")
+            # Arama terimi - birden fazla alanda ara (case-insensitive)
+            # Manuel_Arama_Terimleri alanını da dahil et
+            term_lower = search_term.lower().replace("'", "\\'")
             search_conditions.append(
                 f"OR("
                 f"SEARCH('{term_lower}', LOWER({{Model_Kodu}})), "
                 f"SEARCH('{term_lower}', LOWER({{Model_Adi}})), "
                 f"SEARCH('{term_lower}', LOWER({{Renk_Kodu}})), "
-                f"SEARCH('{term_lower}', LOWER({{SKU}}))"
+                f"SEARCH('{term_lower}', LOWER({{SKU}})), "
+                f"SEARCH('{term_lower}', LOWER({{Manuel_Arama_Terimleri}}))"
                 f")"
             )
 

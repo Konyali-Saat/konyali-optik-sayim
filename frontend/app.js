@@ -29,6 +29,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') manuelSearch();
     });
 
+    // Fotoğraf seçildiğinde önizleme göster
+    const photoInput = document.getElementById('photoInput');
+    if (photoInput) {
+        photoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const preview = document.getElementById('photoPreview');
+                    const previewImg = document.getElementById('photoPreviewImg');
+                    if (preview && previewImg) {
+                        previewImg.src = e.target.result;
+                        preview.style.display = 'block';
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
     // İstatistikleri yükle
     loadStats();
     loadBrands();
@@ -253,12 +273,91 @@ async function confirmAndSave() {
 async function saveNotFound() {
     if (!currentBarcodeSearched) return;
 
-    // Use enhanced save if available, fallback to basic
-    if (typeof saveCountEnhanced !== 'undefined') {
-        await saveCountEnhanced(null, 'Bulunamadı', null);
-    } else {
-        await saveCount(null, 'Bulunamadı', null);
+    showLoading();
+
+    try {
+        const payload = {
+            barkod: currentBarcodeSearched,
+            eslesme_durumu: 'Bulunamadı'
+        };
+
+        // Context bilgileri
+        if (contextBrand) {
+            payload.context_brand = contextBrand;
+        }
+
+        if (contextCategory) {
+            payload.context_category = contextCategory;
+        }
+
+        // Notlar
+        const notlar = document.getElementById('notesInput')?.value.trim();
+        if (notlar) {
+            payload.notlar = notlar;
+        }
+
+        // Ekip/Kullanıcı bilgisi
+        if (currentUser) {
+            payload.sayim_yapan = currentUser;
+        }
+
+        const response = await fetch(`${API_URL}/api/save-count`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        hideLoading();
+
+        if (data.success) {
+            // Fotoğraf varsa upload et
+            const photoInput = document.getElementById('photoInput');
+            if (photoInput && photoInput.files.length > 0) {
+                await uploadPhoto(data.record_id, photoInput.files[0]);
+            }
+
+            // Başarı mesajı göster
+            showSuccessToast();
+
+            // Stats güncelle
+            loadStats();
+        } else {
+            alert('Kayıt hatası: ' + data.error);
+        }
+
+    } catch (error) {
+        hideLoading();
+        console.error('❌ Kayıt hatası:', error);
+        alert('Bağlantı hatası: ' + error.message);
     }
+}
+
+async function uploadPhoto(recordId, photoFile) {
+    try {
+        const formData = new FormData();
+        formData.append('photo', photoFile);
+        formData.append('record_id', recordId);
+
+        const response = await fetch(`${API_URL}/api/upload-photo`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+            console.error('Fotoğraf yükleme hatası:', data.error);
+        }
+    } catch (error) {
+        console.error('Fotoğraf yükleme hatası:', error);
+    }
+}
+
+function removePhoto() {
+    const photoInput = document.getElementById('photoInput');
+    const photoPreview = document.getElementById('photoPreview');
+    if (photoInput) photoInput.value = '';
+    if (photoPreview) photoPreview.style.display = 'none';
 }
 
 async function saveCount(skuId, eslesme, tedarikciKaydiId) {
@@ -412,14 +511,27 @@ function resetForm() {
 }
 
 function focusManuel() {
+    // Sonuç ekranını gizle ve manuel aramaya odaklan
+    hideAllResults();
     document.getElementById('manuelInput').focus();
 }
 
-function skipProduct() {
-    // Use skipAndSave if available (creates record), fallback to resetForm
-    if (typeof skipAndSave !== 'undefined') {
-        skipAndSave();
+async function skipProduct() {
+    // Atla (kaydet) - fotoğraf ve not varsa onlarla kaydet
+    if (!currentBarcodeSearched) {
+        resetForm();
+        return;
+    }
+
+    const notlar = document.getElementById('notesInput')?.value.trim() || '';
+    const photoInput = document.getElementById('photoInput');
+    const hasPhoto = photoInput && photoInput.files.length > 0;
+
+    // Eğer not veya fotoğraf varsa kaydet
+    if (notlar || hasPhoto) {
+        await saveNotFound();
     } else {
+        // Hiçbir şey yoksa direkt atla
         resetForm();
     }
 }

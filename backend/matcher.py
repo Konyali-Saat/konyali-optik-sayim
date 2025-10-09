@@ -67,8 +67,8 @@ class BarcodeMatcher:
             }
 
         elif len(tedarikci_records) == 1:
-            # Tek sonuç - Direkt eşleşme
-            return self._process_single_match(tedarikci_records[0])
+            # Tek sonuç - Direkt eşleşme (context filtresi uygula)
+            return self._process_single_match(tedarikci_records[0], context_brand, context_category)
 
         else:
             # Çoklu sonuç - Belirsiz (context ile filtrelemeyi dene)
@@ -78,12 +78,19 @@ class BarcodeMatcher:
                 context_category
             )
 
-    def _process_single_match(self, tedarikci_record: Dict) -> Dict[str, Any]:
+    def _process_single_match(
+        self,
+        tedarikci_record: Dict,
+        context_brand: Optional[str] = None,
+        context_category: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Tek tedarikçi kaydını işle ve SKU detaylarını getir
 
         Args:
             tedarikci_record: Tedarikçi ürün listesi kaydı
+            context_brand: Marka filtresi
+            context_category: Kategori filtresi
 
         Returns:
             Eşleştirme sonucu
@@ -115,6 +122,29 @@ class BarcodeMatcher:
                 'product': None,
                 'tedarikci_kaydi_id': tedarikci_kaydi_id
             }
+
+        # Context filtresi uygula
+        if context_brand:
+            marka_links = product.get('Marka', [])
+            if not marka_links or marka_links[0] != context_brand:
+                return {
+                    'status': 'bulunamadi',
+                    'confidence': 0,
+                    'sku_id': None,
+                    'product': None,
+                    'tedarikci_kaydi_id': None
+                }
+
+        if context_category:
+            kategori = product.get('Kategori')
+            if kategori != context_category:
+                return {
+                    'status': 'bulunamadi',
+                    'confidence': 0,
+                    'sku_id': None,
+                    'product': None,
+                    'tedarikci_kaydi_id': None
+                }
 
         return {
             'status': 'direkt',

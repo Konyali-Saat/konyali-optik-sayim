@@ -163,6 +163,10 @@ def save_count():
         'Eslesme_Durumu': eslesme_durumu,
     }
 
+    # Notlar (fotoğraf çekilen veya not girilen ürünler için)
+    if data.get('notlar'):
+        record_data['Notlar'] = data['notlar']
+
     # SKU bağlantısı (bulunamadı durumunda olmayabilir)
     if sku_id:
         record_data['SKU'] = [sku_id]
