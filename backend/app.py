@@ -412,6 +412,115 @@ def upload_photo():
         }), 500
 
 
+@app.route('/api/save-unlisted-product', methods=['POST'])
+def save_unlisted_product():
+    """
+    Liste dışı ürün kaydet - hem Master SKU'ya hem Sayım Kayıtlarına ekle
+
+    Request Body:
+        {
+            "barkod": "8056597412261",
+            "kategori": "OF" | "GN" | "CM" | "LN",
+            "marka_id": "recXXXXXX",
+            "model_kodu": "0EA1027",
+            "model_adi": "EA1027" (optional),
+            "renk_kodu": "3001",
+            "renk_adi": "Siyah" (optional),
+            "ekartman": 57,
+            "uts_qr": "..." (optional),
+            "sayim_yapan": "..." (optional),
+            "notlar": "..." (optional)
+        }
+
+    Response:
+        {
+            "success": bool,
+            "sku": str,
+            "sku_record_id": str,
+            "sayim_record_id": str,
+            "error": "..." (hata durumunda)
+        }
+    """
+    if not airtable:
+        return jsonify({'error': 'Sistem başlatılamadı'}), 503
+
+    data = request.json
+
+    # Required fields
+    barkod = data.get('barkod', '').strip()
+    kategori = data.get('kategori')
+    marka_id = data.get('marka_id')
+    model_kodu = data.get('model_kodu', '').strip()
+    renk_kodu = data.get('renk_kodu', '').strip()
+    ekartman = data.get('ekartman')
+
+    # Validation
+    if not all([barkod, kategori, marka_id, model_kodu, renk_kodu, ekartman]):
+        return jsonify({'error': 'Tüm zorunlu alanları doldurun'}), 400
+
+    try:
+        # 1. Master SKU'ya yeni ürün ekle
+        sku_data = {
+            'Kategori': kategori,
+            'Marka': [marka_id],
+            'Model_Kodu': model_kodu,
+            'Renk_Kodu': renk_kodu,
+            'Ekartman': int(ekartman)
+        }
+
+        # Optional fields
+        if data.get('model_adi'):
+            sku_data['Model_Adi'] = data['model_adi']
+        if data.get('renk_adi'):
+            sku_data['Renk_Adi'] = data['renk_adi']
+
+        sku_result = airtable.create_new_sku(sku_data)
+
+        if not sku_result['success']:
+            return jsonify({
+                'success': False,
+                'error': f"SKU oluşturulamadı: {sku_result.get('error')}"
+            }), 500
+
+        # 2. Sayım kaydı oluştur
+        sayim_data = {
+            'Okutulan_Barkod': barkod,
+            'SKU': [sku_result['record_id']],
+            'Eslesme_Durumu': 'Manuel'
+        }
+
+        # Optional fields
+        if data.get('uts_qr'):
+            sayim_data['Okutulan_UTS_QR'] = data['uts_qr']
+        if data.get('sayim_yapan'):
+            sayim_data['Sayan Ekip'] = data['sayim_yapan']
+        if data.get('notlar'):
+            sayim_data['Notlar'] = data['notlar']
+
+        sayim_result = airtable.create_sayim_record(sayim_data)
+
+        if not sayim_result['success']:
+            return jsonify({
+                'success': False,
+                'error': f"Sayım kaydı oluşturulamadı: {sayim_result.get('error')}"
+            }), 500
+
+        # Başarılı
+        return jsonify({
+            'success': True,
+            'sku': sku_result['sku'],
+            'sku_record_id': sku_result['record_id'],
+            'sayim_record_id': sayim_result['record_id']
+        })
+
+    except Exception as e:
+        print(f"HATA: Liste dışı ürün kaydetme hatası: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @app.route('/api/leaderboard', methods=['GET'])
 def leaderboard():
     """

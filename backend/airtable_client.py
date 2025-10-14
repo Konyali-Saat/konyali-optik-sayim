@@ -100,6 +100,61 @@ class AirtableClient:
             print(f"HATA: SKU detay hatası: {e}")
             return None
 
+    def create_new_sku(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Master_SKU tablosuna yeni ürün ekle (liste dışı ürünler için)
+
+        Args:
+            data: Ürün verileri
+                - Kategori (str): "OF" | "GN" | "CM" | "LN"
+                - Marka (list of record IDs): Marka ID'si
+                - Model_Kodu (str)
+                - Model_Adi (str, optional)
+                - Renk_Kodu (str)
+                - Renk_Adi (str, optional)
+                - Ekartman (int)
+
+        Returns:
+            Dict: {success: bool, record_id: str, sku: str, error: str}
+        """
+        try:
+            # SKU'yu oluştur: Kategori-Marka_Kodu-Model_Kodu-Renk_Kodu-Ekartman
+            # Marka kodu için marka ID'den bilgi almamız gerekiyor
+            marka_id = data.get('Marka')[0] if isinstance(data.get('Marka'), list) else data.get('Marka')
+            marka_record = self.markalar.get(marka_id)
+            marka_kodu = marka_record['fields'].get('Marka_Kodu', 'XX')
+
+            kategori = data.get('Kategori')
+            model_kodu = data.get('Model_Kodu')
+            renk_kodu = data.get('Renk_Kodu')
+            ekartman = data.get('Ekartman')
+
+            # SKU formatı: OF-EA-0EA1027-3001-57
+            sku = f"{kategori}-{marka_kodu}-{model_kodu}-{renk_kodu}-{ekartman}"
+
+            # SKU alanını ekle
+            data['SKU'] = sku
+
+            # Durum alanını varsayılan olarak Aktif yap
+            if 'Durum' not in data:
+                data['Durum'] = 'Aktif'
+
+            # Kaydı oluştur
+            record = self.master_sku.create(data)
+
+            return {
+                'success': True,
+                'record_id': record['id'],
+                'sku': sku,
+                'data': record['fields']
+            }
+        except Exception as e:
+            print(f"HATA: Yeni SKU oluşturma hatası: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
     def search_sku_by_term(
         self,
         search_term: str,

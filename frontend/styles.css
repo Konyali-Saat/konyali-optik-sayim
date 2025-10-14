@@ -354,12 +354,17 @@ button {
 .candidate-item h4 {
     margin-bottom: 8px;
     color: var(--dark);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 .candidate-item p {
     font-size: 14px;
     color: var(--gray);
     margin: 4px 0;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: normal;
 }
 
 .candidate-item p strong {
@@ -491,6 +496,61 @@ button {
 
 .info-text strong {
     color: var(--dark);
+}
+
+/* ========== UNLISTED PRODUCT FORM ========== */
+.unlisted-form {
+    margin: 20px 0;
+}
+
+.unlisted-form .form-group {
+    margin-bottom: 15px;
+}
+
+.unlisted-form .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--dark);
+}
+
+.unlisted-form .form-group input,
+.unlisted-form .form-group select,
+.unlisted-form .form-group textarea {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+}
+
+.unlisted-form .form-group input:focus,
+.unlisted-form .form-group select:focus,
+.unlisted-form .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.unlisted-form .form-group textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.sku-preview {
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ========== TOAST ========== */

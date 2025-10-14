@@ -66,6 +66,20 @@
                     🔎 MANUEL ARA
                 </button>
             </div>
+
+            <!-- Liste Dışı Ürün Ekle Butonu -->
+            <div class="unlisted-product-box" style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 2px dashed #ffc107; border-radius: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <span style="font-size: 24px;">📝</span>
+                    <div>
+                        <strong style="display: block; color: #333;">Liste Dışı Ürün mü?</strong>
+                        <small style="color: #666;">Master SKU'da yok, sisteme yeni eklenecek</small>
+                    </div>
+                </div>
+                <button class="btn-warning" style="width: 100%; padding: 12px; font-size: 16px; font-weight: 600;" onclick="showUnlistedProductFormFromSearch()">
+                    ➕ LİSTE DIŞI ÜRÜN EKLE
+                </button>
+            </div>
         </section>
 
         <!-- Loading -->
@@ -211,8 +225,93 @@
                 <button class="btn-large btn-warning" onclick="saveNotFound()">
                     💾 BULUNAMADI OLARAK KAYDET
                 </button>
+                <button class="btn-large btn-primary" onclick="showUnlistedProductForm()">
+                    ➕ LİSTE DIŞI ÜRÜN EKLE
+                </button>
                 <button class="btn-large btn-cancel" onclick="skipProduct()">
                     ⏭️ ATLA (KAYDET)
+                </button>
+            </div>
+        </section>
+
+        <!-- Result: Unlisted Product Form -->
+        <section id="resultUnlistedProduct" class="result-box warning" style="display: none;">
+            <div class="result-header">
+                <span class="icon">📝</span>
+                <h2>LİSTE DIŞI ÜRÜN EKLE</h2>
+            </div>
+
+            <p class="info-text">Ürün bilgilerini girerek hem Master SKU'ya hem de sayıma ekleyin.</p>
+
+            <div class="unlisted-form">
+                <div class="form-group">
+                    <label>Kategori: <span style="color: red;">*</span></label>
+                    <select id="unlistedKategori" required>
+                        <option value="">Seçiniz...</option>
+                        <option value="OF">Optik Çerçeve</option>
+                        <option value="GN">Güneş Gözlüğü</option>
+                        <option value="CM">Gözlük Camı</option>
+                        <option value="LN">Lens</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Marka: <span style="color: red;">*</span></label>
+                    <select id="unlistedMarka" required>
+                        <option value="">Seçiniz...</option>
+                        <!-- Dinamik olarak doldurulacak -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Model Kodu: <span style="color: red;">*</span></label>
+                    <input type="text" id="unlistedModelKodu" placeholder="Örn: 0EA1027" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Model Adı:</label>
+                    <input type="text" id="unlistedModelAdi" placeholder="Opsiyonel">
+                </div>
+
+                <div class="form-group">
+                    <label>Renk Kodu: <span style="color: red;">*</span></label>
+                    <input type="text" id="unlistedRenkKodu" placeholder="Örn: 3001" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Renk Adı:</label>
+                    <input type="text" id="unlistedRenkAdi" placeholder="Opsiyonel">
+                </div>
+
+                <div class="form-group">
+                    <label>Ekartman (mm): <span style="color: red;">*</span></label>
+                    <input type="number" id="unlistedEkartman" placeholder="Örn: 57" required>
+                </div>
+
+                <!-- UTS QR Input -->
+                <div class="form-group">
+                    <label>📦 UTS QR Kodu:</label>
+                    <input type="text" id="unlistedUtsQr" placeholder="UTS QR kodunu okutun...">
+                </div>
+
+                <!-- Notlar -->
+                <div class="form-group">
+                    <label>📝 Notlar:</label>
+                    <textarea id="unlistedNotlar" placeholder="Ek bilgiler..." rows="2"></textarea>
+                </div>
+
+                <div class="sku-preview" id="skuPreview" style="display: none; margin: 15px 0; padding: 15px; background: #f0f0f0; border-radius: 8px;">
+                    <strong>Oluşturulacak SKU:</strong>
+                    <div id="skuPreviewText" style="font-size: 18px; color: var(--primary); margin-top: 5px;"></div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button class="btn-large btn-confirm" onclick="saveUnlistedProduct()">
+                    ✓ KAYDET VE MASTER SKU'YA EKLE
+                </button>
+                <button class="btn-large btn-cancel" onclick="hideUnlistedProductForm()">
+                    ✗ GERİ DÖN
                 </button>
             </div>
         </section>

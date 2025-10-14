@@ -215,6 +215,7 @@ function hideAllResults() {
     document.getElementById('resultSuccess').style.display = 'none';
     document.getElementById('resultMultiple').style.display = 'none';
     document.getElementById('resultNotFound').style.display = 'none';
+    document.getElementById('resultUnlistedProduct').style.display = 'none';
 }
 
 // ========== CANDIDATE SELECTION ==========
@@ -579,6 +580,175 @@ function updateContextDisplay() {
     }
 }
 
+// ========== UNLISTED PRODUCT ==========
+let allBrands = [];  // Tüm markaları tut
+
+function showUnlistedProductForm() {
+    hideAllResults();
+    document.getElementById('resultUnlistedProduct').style.display = 'block';
+
+    // Marka listesini doldur
+    populateUnlistedBrands();
+
+    // Bağlamdan kategori ve markayı otomatik seç
+    if (contextCategory) {
+        document.getElementById('unlistedKategori').value = contextCategory;
+    }
+    if (contextBrand) {
+        document.getElementById('unlistedMarka').value = contextBrand;
+    }
+
+    // SKU preview için event listeners ekle
+    const inputs = ['unlistedKategori', 'unlistedMarka', 'unlistedModelKodu', 'unlistedRenkKodu', 'unlistedEkartman'];
+    inputs.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('input', updateSkuPreview);
+            element.addEventListener('change', updateSkuPreview);
+        }
+    });
+
+    // İlk SKU preview kontrolü
+    updateSkuPreview();
+}
+
+function showUnlistedProductFormFromSearch() {
+    // Manuel arama inputundan barkod al
+    const searchTerm = document.getElementById('manuelInput').value.trim();
+    if (searchTerm) {
+        currentBarcodeSearched = searchTerm;
+    } else {
+        currentBarcodeSearched = 'manuel-' + Date.now();
+    }
+
+    showUnlistedProductForm();
+}
+
+function hideUnlistedProductForm() {
+    // Formu temizle
+    document.getElementById('unlistedKategori').value = '';
+    document.getElementById('unlistedMarka').value = '';
+    document.getElementById('unlistedModelKodu').value = '';
+    document.getElementById('unlistedModelAdi').value = '';
+    document.getElementById('unlistedRenkKodu').value = '';
+    document.getElementById('unlistedRenkAdi').value = '';
+    document.getElementById('unlistedEkartman').value = '';
+    document.getElementById('unlistedUtsQr').value = '';
+    document.getElementById('unlistedNotlar').value = '';
+    document.getElementById('skuPreview').style.display = 'none';
+
+    // Not Found ekranına geri dön
+    hideAllResults();
+    showNotFound(currentBarcodeSearched);
+}
+
+function populateUnlistedBrands() {
+    const select = document.getElementById('unlistedMarka');
+
+    // Önce mevcut seçenekleri temizle (ilk option hariç)
+    while (select.options.length > 1) {
+        select.remove(1);
+    }
+
+    // Markaları ekle
+    allBrands.forEach(brand => {
+        const option = document.createElement('option');
+        option.value = brand.id;
+        option.textContent = brand.ad;
+        option.dataset.kod = brand.kod;
+        select.appendChild(option);
+    });
+}
+
+function updateSkuPreview() {
+    const kategori = document.getElementById('unlistedKategori').value;
+    const markaSelect = document.getElementById('unlistedMarka');
+    const markaKod = markaSelect.selectedOptions[0]?.dataset.kod || '';
+    const modelKodu = document.getElementById('unlistedModelKodu').value.trim();
+    const renkKodu = document.getElementById('unlistedRenkKodu').value.trim();
+    const ekartman = document.getElementById('unlistedEkartman').value.trim();
+
+    // Tüm alanlar doluysa SKU preview göster
+    if (kategori && markaKod && modelKodu && renkKodu && ekartman) {
+        const sku = `${kategori}-${markaKod}-${modelKodu}-${renkKodu}-${ekartman}`;
+        document.getElementById('skuPreviewText').textContent = sku;
+        document.getElementById('skuPreview').style.display = 'block';
+    } else {
+        document.getElementById('skuPreview').style.display = 'none';
+    }
+}
+
+async function saveUnlistedProduct() {
+    // Zorunlu alanları kontrol et
+    const kategori = document.getElementById('unlistedKategori').value;
+    const markaId = document.getElementById('unlistedMarka').value;
+    const modelKodu = document.getElementById('unlistedModelKodu').value.trim();
+    const renkKodu = document.getElementById('unlistedRenkKodu').value.trim();
+    const ekartman = document.getElementById('unlistedEkartman').value.trim();
+
+    if (!kategori || !markaId || !modelKodu || !renkKodu || !ekartman) {
+        alert('Lütfen tüm zorunlu alanları doldurun! (Kategori, Marka, Model Kodu, Renk Kodu, Ekartman)');
+        return;
+    }
+
+    showLoading();
+
+    try {
+        const payload = {
+            barkod: currentBarcodeSearched,
+            kategori: kategori,
+            marka_id: markaId,
+            model_kodu: modelKodu,
+            renk_kodu: renkKodu,
+            ekartman: parseInt(ekartman)
+        };
+
+        // Optional fields
+        const modelAdi = document.getElementById('unlistedModelAdi').value.trim();
+        if (modelAdi) payload.model_adi = modelAdi;
+
+        const renkAdi = document.getElementById('unlistedRenkAdi').value.trim();
+        if (renkAdi) payload.renk_adi = renkAdi;
+
+        const utsQr = document.getElementById('unlistedUtsQr').value.trim();
+        if (utsQr) payload.uts_qr = utsQr;
+
+        const notlar = document.getElementById('unlistedNotlar').value.trim();
+        if (notlar) payload.notlar = notlar;
+
+        // Ekip/Kullanıcı bilgisi
+        if (currentUser) {
+            payload.sayim_yapan = currentUser;
+        }
+
+        const response = await fetch(`${API_URL}/api/save-unlisted-product`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        hideLoading();
+
+        if (data.success) {
+            alert(`✅ Başarılı!\n\nYeni SKU oluşturuldu: ${data.sku}\n\nÜrün hem Master SKU'ya hem de sayım kayıtlarına eklendi.`);
+
+            // Stats güncelle
+            loadStats();
+
+            // Formu temizle ve ana ekrana dön
+            resetForm();
+        } else {
+            alert('❌ Kayıt hatası: ' + data.error);
+        }
+
+    } catch (error) {
+        hideLoading();
+        console.error('❌ Liste dışı ürün kaydetme hatası:', error);
+        alert('Bağlantı hatası: ' + error.message);
+    }
+}
+
 // ========== LOAD DATA ==========
 async function loadStats() {
     try {
@@ -602,6 +772,9 @@ async function loadBrands() {
         const data = await response.json();
 
         if (data.success) {
+            // Global değişkene kaydet (unlisted product form için)
+            allBrands = data.brands;
+
             const select = document.getElementById('contextBrand');
             data.brands.forEach(brand => {
                 const option = document.createElement('option');
