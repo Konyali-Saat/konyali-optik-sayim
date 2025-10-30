@@ -1,6 +1,10 @@
 """
 Airtable Client - Konyalı Optik Sayım Sistemi
-Tüm Airtable işlemleri bu modül üzerinden yapılır.
+Çoklu workspace desteği ile tüm Airtable işlemleri bu modül üzerinden yapılır.
+
+YENİ YAPI:
+- Her kategori (Optik, Güneş, Lens) için ayrı workspace
+- Master_SKU + Tedarikci_Urun_Listesi birleştirilerek Urun_Katalogu oluşturuldu
 """
 
 from pyairtable import Api
@@ -12,22 +16,38 @@ load_dotenv()
 
 
 class AirtableClient:
-    """Airtable bağlantı ve işlem yöneticisi"""
+    """Airtable bağlantı ve işlem yöneticisi - Çoklu workspace desteği"""
 
-    def __init__(self):
-        """Airtable API bağlantısını başlat"""
+    def __init__(self, category: str = 'OF'):
+        """
+        Airtable API bağlantısını başlat
+
+        Args:
+            category: 'OF' (Optik) | 'GN' (Güneş) | 'LN' (Lens)
+        """
         token = os.getenv('AIRTABLE_TOKEN')
-        base_id = os.getenv('AIRTABLE_BASE_ID')
 
-        if not token or not base_id:
-            raise ValueError("AIRTABLE_TOKEN ve AIRTABLE_BASE_ID .env dosyasında tanımlanmalı!")
+        # Kategoriye göre base_id seç
+        base_mapping = {
+            'OF': os.getenv('AIRTABLE_BASE_OPTIK'),
+            'GN': os.getenv('AIRTABLE_BASE_GUNES'),
+            'LN': os.getenv('AIRTABLE_BASE_LENS')
+        }
+
+        base_id = base_mapping.get(category)
+
+        if not token:
+            raise ValueError("AIRTABLE_TOKEN .env dosyasında tanımlanmalı!")
+
+        if not base_id:
+            raise ValueError(f"Kategori '{category}' için AIRTABLE_BASE_{category} .env dosyasında tanımlanmalı!")
 
         self.api = Api(token)
         self.base = self.api.base(base_id)
+        self.category = category
 
-        # Tablo referansları
-        self.master_sku = self.base.table('Master_SKU')
-        self.tedarikci_liste = self.base.table('Tedarikci_Urun_Listesi')
+        # Tablo referansları - Standardize edilmiş isimler
+        self.urun_katalogu = self.base.table('Urun_Katalogu')
         self.sayim_kayitlari = self.base.table('Sayim_Kayitlari')
         self.markalar = self.base.table('Markalar')
         self.stok_kalemleri = self.base.table('Stok_Kalemleri')
@@ -36,22 +56,21 @@ class AirtableClient:
 
     def search_by_barcode(self, barkod: str) -> List[Dict[str, Any]]:
         """
-        Tedarikci_Urun_Listesi tablosunda barkod ara
+        Urun_Katalogu tablosunda barkod ara
 
         Args:
             barkod: Aranan barkod (string)
 
         Returns:
-            List[Dict]: Bulunan tedarikçi kayıtları
+            List[Dict]: Bulunan ürün kayıtları
         """
         try:
             # Barkodu hem metin hem de sayı olarak aramayı dene
-            # Bu, Airtable'daki alanın formatı (Metin veya Sayı) ne olursa olsun eşleşmeyi sağlar
-            formula = f"{{Tedarikci_Barkodu}} = '{barkod}'"
+            formula = f"{{Tedarikçi Barkodu}} = '{barkod}'"
             if barkod.isnumeric():
-                formula = f"OR({{Tedarikci_Barkodu}} = '{barkod}', {{Tedarikci_Barkodu}} = {barkod})"
+                formula = f"OR({{Tedarikçi Barkodu}} = '{barkod}', {{Tedarikçi Barkodu}} = {barkod})"
 
-            results = self.tedarikci_liste.all(formula=formula)
+            results = self.urun_katalogu.all(formula=formula)
             return results
         except Exception as e:
             print(f"HATA: Barkod arama hatası: {e}")
@@ -74,8 +93,8 @@ class AirtableClient:
         try:
             partial = barkod[:min_length]
             # FIND() fonksiyonu ile kısmi eşleşme
-            formula = f"FIND('{partial}', {{Tedarikci_Barkodu}}) = 1"
-            results = self.tedarikci_liste.all(formula=formula)
+            formula = f"FIND('{partial}', {{Tedarikçi Barkodu}}) = 1"
+            results = self.urun_katalogu.all(formula=formula)
             return results
         except Exception as e:
             print(f"HATA: Fuzzy arama hatası: {e}")
@@ -85,7 +104,7 @@ class AirtableClient:
 
     def get_sku_details(self, sku_record_id: str) -> Optional[Dict[str, Any]]:
         """
-        Master_SKU tablosundan ürün detaylarını getir
+        Urun_Katalogu tablosundan ürün detaylarını getir
 
         Args:
             sku_record_id: Airtable record ID (rec...)
@@ -94,7 +113,7 @@ class AirtableClient:
             Dict: SKU detayları veya None
         """
         try:
-            record = self.master_sku.get(sku_record_id)
+            record = self.urun_katalogu.get(sku_record_id)
             return record['fields']
         except Exception as e:
             print(f"HATA: SKU detay hatası: {e}")
@@ -102,17 +121,18 @@ class AirtableClient:
 
     def create_new_sku(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Master_SKU tablosuna yeni ürün ekle (liste dışı ürünler için)
+        Urun_Katalogu tablosuna yeni ürün ekle (liste dışı ürünler için)
 
         Args:
             data: Ürün verileri
-                - Kategori (str): "OF" | "GN" | "CM" | "LN"
+                - Kategori (str): "OF" | "GN" | "LN"
                 - Marka (list of record IDs): Marka ID'si
                 - Model_Kodu (str)
                 - Model_Adi (str, optional)
                 - Renk_Kodu (str)
                 - Renk_Adi (str, optional)
                 - Ekartman (int)
+                - Tedarikci_Barkodu (str): YENİ - birleştirilmiş tablodan
 
         Returns:
             Dict: {success: bool, record_id: str, sku: str, error: str}
@@ -132,15 +152,14 @@ class AirtableClient:
             # SKU formatı: OF-EA-0EA1027-3001-57
             sku = f"{kategori}-{marka_kodu}-{model_kodu}-{renk_kodu}-{ekartman}"
 
-            # SKU alanını ekle
-            data['SKU'] = sku
+            # SKU alanı formula olduğu için eklemiyoruz, otomatik oluşacak
 
             # Durum alanını varsayılan olarak Aktif yap
             if 'Durum' not in data:
                 data['Durum'] = 'Aktif'
 
             # Kaydı oluştur
-            record = self.master_sku.create(data)
+            record = self.urun_katalogu.create(data)
 
             return {
                 'success': True,
@@ -162,13 +181,13 @@ class AirtableClient:
         context_category: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Master_SKU tablosunda manuel arama
+        Urun_Katalogu tablosunda manuel arama
         Model kodu, model adı, renk kodu, SKU ile arama yapar
 
         Args:
             search_term: Arama terimi
             context_brand: Marka filtresi (record ID)
-            context_category: Kategori filtresi (OF/GN/CM/LN)
+            context_category: Kategori filtresi (OF/GN/LN)
 
         Returns:
             List[Dict]: Bulunan SKU kayıtları
@@ -178,18 +197,16 @@ class AirtableClient:
             search_conditions = []
 
             # Arama terimi - birden fazla alanda ara (case-insensitive)
-            # Arama_Kelimeleri alanını da dahil et
             term_lower = search_term.lower().replace("'", "\\'")
 
             # SEARCH fonksiyonu için boş olmayan alanlarda ara
-            # IF kullanarak boş alanları atla
             search_conditions.append(
                 f"OR("
-                f"IF({{Model_Kodu}}, SEARCH('{term_lower}', LOWER({{Model_Kodu}})), 0), "
-                f"IF({{Model_Adi}}, SEARCH('{term_lower}', LOWER({{Model_Adi}})), 0), "
-                f"IF({{Renk_Kodu}}, SEARCH('{term_lower}', LOWER({{Renk_Kodu}})), 0), "
+                f"IF({{Model Kodu}}, SEARCH('{term_lower}', LOWER({{Model Kodu}})), 0), "
+                f"IF({{Model Adı}}, SEARCH('{term_lower}', LOWER({{Model Adı}})), 0), "
+                f"IF({{Renk Kodu}}, SEARCH('{term_lower}', LOWER({{Renk Kodu}})), 0), "
                 f"IF({{SKU}}, SEARCH('{term_lower}', LOWER({{SKU}})), 0), "
-                f"IF({{Arama_Kelimeleri}}, SEARCH('{term_lower}', LOWER({{Arama_Kelimeleri}})), 0)"
+                f"IF({{Arama Kelimeleri}}, SEARCH('{term_lower}', LOWER({{Arama Kelimeleri}})), 0)"
                 f")"
             )
 
@@ -204,7 +221,7 @@ class AirtableClient:
             formula = "AND(" + ", ".join(search_conditions) + ")"
 
             # Arama yap ve ilk 20 sonucu al
-            results = self.master_sku.all(formula=formula, max_records=20)
+            results = self.urun_katalogu.all(formula=formula, max_records=20)
             return results
 
         except Exception as e:
@@ -222,7 +239,6 @@ class AirtableClient:
                 - Okutulan_Barkod (str)
                 - SKU (list of record IDs)
                 - Eslesme_Durumu (str): "Direkt" | "Belirsiz" | "Bulunamadı"
-                - Durum (str): "Tamamlandı" | "Beklemede" | "İnceleme Gerekli"
                 - Baglam_Marka (list, optional)
                 - Baglam_Kategori (str, optional)
                 - Manuel_Arama_Terimi (str, optional)
@@ -269,6 +285,63 @@ class AirtableClient:
                 'success': False,
                 'error': str(e)
             }
+
+    # ========== STOK YÖNETİMİ ==========
+
+    def update_stok_from_sayim(self, sku_id: str, konum: str = None) -> bool:
+        """
+        Sayım sonrası stok kalemini otomatik güncelle
+
+        Args:
+            sku_id: SKU record ID
+            konum: Ürün konumu (opsiyonel)
+
+        Returns:
+            bool: Başarılı mı?
+        """
+        try:
+            from datetime import datetime
+            today = datetime.now().strftime('%Y-%m-%d')
+
+            # Bugün bu SKU için kaç adet sayıldı?
+            formula = f"AND(IS_SAME({{Timestamp}}, '{today}', 'day'), SEARCH('{sku_id}', ARRAYJOIN({{SKU}})))"
+            records = self.sayim_kayitlari.all(formula=formula)
+            count = len(records)
+
+            # Stok_Kalemleri tablosunda bu SKU var mı?
+            stok_formula = f"SEARCH('{sku_id}', ARRAYJOIN({{SKU}}))"
+            stok_records = self.stok_kalemleri.all(formula=stok_formula)
+
+            if stok_records:
+                # Güncelle (ilk kaydı)
+                record_id = stok_records[0]['id']
+                update_data = {
+                    'Son_Sayim_Tarihi': today,
+                    'Son_Sayim_Miktari': count
+                }
+                # Konum belirtilmişse güncelle
+                if konum:
+                    update_data['Konum'] = konum
+
+                self.stok_kalemleri.update(record_id, update_data)
+                print(f"Stok güncellendi: {sku_id} → {count} adet")
+            else:
+                # Yeni oluştur
+                create_data = {
+                    'SKU': [sku_id],
+                    'Konum': konum or 'Genel',
+                    'Son_Sayim_Tarihi': today,
+                    'Son_Sayim_Miktari': count,
+                    'Mevcut_Miktar': count  # İlk sayımda mevcut = sayılan
+                }
+                self.stok_kalemleri.create(create_data)
+                print(f"Yeni stok kalemi oluşturuldu: {sku_id} → {count} adet")
+
+            return True
+
+        except Exception as e:
+            print(f"HATA: Stok güncelleme hatası: {e}")
+            return False
 
     # ========== İSTATİSTİKLER ==========
 
@@ -334,12 +407,12 @@ class AirtableClient:
             brands = []
             for record in records:
                 fields = record['fields']
-                # Sadece Marka_Adi olan kayıtları al
-                if fields.get('Marka_Adi'):
+                # Sadece Marka Adı olan kayıtları al
+                if fields.get('Marka Adı'):
                     brands.append({
                         'id': record['id'],
-                        'kod': fields.get('Marka_Kodu', ''),
-                        'ad': fields.get('Marka_Adi', ''),
+                        'kod': fields.get('Marka Kodu', ''),
+                        'ad': fields.get('Marka Adı', ''),
                         'kategori': fields.get('Kategori', [])
                     })
 
@@ -371,25 +444,32 @@ class AirtableClient:
 
 # Test için
 if __name__ == "__main__":
-    print("[TEST] Airtable Client Test\n")
+    print("[TEST] Airtable Client Test - Çoklu Workspace\n")
 
-    try:
-        client = AirtableClient()
-        print("OK: Bağlantı başarılı!")
+    categories = ['OF', 'GN', 'LN']
 
-        # Health check
-        if client.health_check():
-            print("OK: Health check OK")
+    for cat in categories:
+        print(f"\n{'='*50}")
+        print(f"Kategori: {cat}")
+        print('='*50)
 
-        # Markalar
-        brands = client.get_all_brands()
-        print(f"OK: {len(brands)} marka bulundu")
-        if brands:
-            print(f"   Örnek: {brands[0]['ad']}")
+        try:
+            client = AirtableClient(category=cat)
+            print("OK: Baglanti basarili!")
 
-        # İstatistikler
-        stats = client.get_today_stats()
-        print(f"OK: Bugün {stats['total']} ürün sayıldı")
+            # Health check
+            if client.health_check():
+                print("OK: Health check OK")
 
-    except Exception as e:
-        print(f"HATA: Test başarısız: {e}")
+            # Markalar
+            brands = client.get_all_brands()
+            print(f"OK: {len(brands)} marka bulundu")
+            if brands:
+                print(f"  Ornek: {brands[0]['ad']}")
+
+            # İstatistikler
+            stats = client.get_today_stats()
+            print(f"OK: Bugun {stats['total']} urun sayildi")
+
+        except Exception as e:
+            print(f"HATA: Test basarisiz: {e}")

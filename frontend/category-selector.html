@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kategori Seçimi - Konyalı Optik</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .selector-container {
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            font-size: 32px;
+            color: #333;
+            margin-top: 10px;
+        }
+
+        .logo-icon {
+            font-size: 64px;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .warning-box h3 {
+            color: #856404;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .warning-box p {
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .category-grid {
+            display: grid;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .category-card {
+            background: #f8f9fa;
+            border: 3px solid #ddd;
+            border-radius: 16px;
+            padding: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .category-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .category-card.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .category-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .category-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .category-code {
+            font-size: 14px;
+            color: #666;
+            font-family: 'Courier New', monospace;
+            font-weight: 600;
+        }
+
+        .category-desc {
+            font-size: 12px;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        .btn-confirm {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-confirm:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-confirm:not(:disabled):hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .info-box p {
+            color: #0d47a1;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .selected-indicator {
+            display: inline-block;
+            margin-left: 10px;
+            font-size: 24px;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+    </style>
+</head>
+<body>
+    <div class="selector-container">
+        <div class="logo">
+            <div class="logo-icon">📦</div>
+            <h1>Konyalı Optik Sayım</h1>
+        </div>
+
+        <div class="warning-box">
+            <h3>⚠️ ÖNEMLİ UYARI</h3>
+            <p><strong>Kategori seçimi çok önemlidir!</strong> Seçtiğiniz kategori sayım boyunca değişmez. Yanlış kategori seçerseniz veriler yanlış yere kaydedilir.</p>
+            <p style="margin-top: 8px;">Emin olduğunuz kategoriyi seçin.</p>
+        </div>
+
+        <div class="category-grid">
+            <div class="category-card" id="card-OF" onclick="selectCategory('OF')">
+                <div class="category-icon">👓</div>
+                <div class="category-title">Optik Çerçeve</div>
+                <div class="category-code">Kategori: OF</div>
+                <div class="category-desc">Gözlük çerçeveleri</div>
+            </div>
+
+            <div class="category-card" id="card-GN" onclick="selectCategory('GN')">
+                <div class="category-icon">🕶️</div>
+                <div class="category-title">Güneş Gözlüğü</div>
+                <div class="category-code">Kategori: GN</div>
+                <div class="category-desc">Güneş gözlükleri</div>
+            </div>
+
+            <div class="category-card" id="card-LN" onclick="selectCategory('LN')">
+                <div class="category-icon">👁️</div>
+                <div class="category-title">Lens</div>
+                <div class="category-code">Kategori: LN</div>
+                <div class="category-desc">Kontakt lensler</div>
+            </div>
+        </div>
+
+        <button class="btn-confirm" id="confirmBtn" onclick="confirmCategory()" disabled>
+            DEVAM ET
+        </button>
+
+        <div class="info-box">
+            <p><strong>💡 İpucu:</strong> Kategoriyi değiştirmek için ana sayfadaki değiştir butonunu kullanabilirsiniz (onay gerektirir).</p>
+        </div>
+    </div>
+
+    <script>
+        let selectedCategory = null;
+
+        // Sayfa yüklendiğinde daha önce seçilmiş kategoriyi kontrol et
+        window.onload = function() {
+            const savedCategory = localStorage.getItem('selectedCategory');
+            if (savedCategory) {
+                // Kategori daha önce seçilmişse direkt ana sayfaya yönlendir
+                window.location.href = 'index.html';
+            }
+        };
+
+        function selectCategory(category) {
+            selectedCategory = category;
+
+            // Tüm kartların selected class'ını kaldır
+            document.querySelectorAll('.category-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Seçilen kartı işaretle
+            document.getElementById('card-' + category).classList.add('selected');
+
+            // Butonu aktif et
+            document.getElementById('confirmBtn').disabled = false;
+        }
+
+        function confirmCategory() {
+            if (!selectedCategory) {
+                alert('Lütfen bir kategori seçin!');
+                return;
+            }
+
+            // Son kez onay al
+            const categoryNames = {
+                'OF': 'Optik Çerçeve',
+                'GN': 'Güneş Gözlüğü',
+                'LN': 'Lens'
+            };
+
+            const confirmed = confirm(
+                `"${categoryNames[selectedCategory]}" kategorisini seçiyorsunuz.\n\n` +
+                `Bu seçim sayım boyunca geçerli olacak ve kolayca değiştiremeyeceksiniz.\n\n` +
+                `Emin misiniz?`
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            // Kategoriyi kaydet
+            localStorage.setItem('selectedCategory', selectedCategory);
+            localStorage.setItem('categorySelectedAt', new Date().toISOString());
+
+            // Ana sayfaya yönlendir
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>

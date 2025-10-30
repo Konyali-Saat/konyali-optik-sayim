@@ -1,6 +1,9 @@
 """
 Barkod Matcher - Konyalı Optik Sayım Sistemi
 Akıllı barkod eşleştirme algoritması
+
+YENİ YAPI:
+- Artık tek tablo (Urun_Katalogu) - barkod ve ürün bilgileri birlikte
 """
 
 from typing import Dict, Optional, List, Any
@@ -35,7 +38,7 @@ class BarcodeMatcher:
         Args:
             barkod: Okutulan barkod
             context_brand: Marka bağlamı (record ID, optional)
-            context_category: Kategori bağlamı (OF/GN/CM/LN, optional)
+            context_category: Kategori bağlamı (OF/GN/LN, optional)
 
         Returns:
             {
@@ -43,15 +46,14 @@ class BarcodeMatcher:
                 'confidence': 0-100,
                 'sku_id': str or None,
                 'product': dict or None,
-                'candidates': list (belirsiz durumda),
-                'tedarikci_kaydi_id': str or None
+                'candidates': list (belirsiz durumda)
             }
         """
 
-        # 1. Direkt arama
-        tedarikci_records = self.client.search_by_barcode(barkod)
+        # 1. Direkt arama - YENİ: Artık direkt Urun_Katalogu'nda ara
+        urun_records = self.client.search_by_barcode(barkod)
 
-        if len(tedarikci_records) == 0:
+        if len(urun_records) == 0:
             # 2. Fuzzy search dene
             fuzzy_results = self._fuzzy_search(barkod, context_brand, context_category)
             if fuzzy_results:
@@ -62,110 +64,81 @@ class BarcodeMatcher:
                 'status': 'bulunamadi',
                 'confidence': 0,
                 'sku_id': None,
-                'product': None,
-                'tedarikci_kaydi_id': None
+                'product': None
             }
 
-        elif len(tedarikci_records) == 1:
+        elif len(urun_records) == 1:
             # Tek sonuç - Direkt eşleşme (context filtresi uygula)
-            return self._process_single_match(tedarikci_records[0], context_brand, context_category)
+            return self._process_single_match(urun_records[0], context_brand, context_category)
 
         else:
             # Çoklu sonuç - Belirsiz (context ile filtrelemeyi dene)
             return self._process_multiple_matches(
-                tedarikci_records,
+                urun_records,
                 context_brand,
                 context_category
             )
 
     def _process_single_match(
         self,
-        tedarikci_record: Dict,
+        urun_record: Dict,
         context_brand: Optional[str] = None,
         context_category: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Tek tedarikçi kaydını işle ve SKU detaylarını getir
+        Tek ürün kaydını işle
 
         Args:
-            tedarikci_record: Tedarikçi ürün listesi kaydı
+            urun_record: Urun_Katalogu kaydı (YENİ: artık tedarikçi kaydı değil)
             context_brand: Marka filtresi
             context_category: Kategori filtresi
 
         Returns:
             Eşleştirme sonucu
         """
-        fields = tedarikci_record['fields']
-        tedarikci_kaydi_id = tedarikci_record['id']
-
-        # Master_SKU bağlantısını bul
-        sku_links = fields.get('Master_SKU', [])
-
-        if not sku_links:
-            return {
-                'status': 'bulunamadi',
-                'confidence': 0,
-                'sku_id': None,
-                'product': None,
-                'tedarikci_kaydi_id': tedarikci_kaydi_id
-            }
-
-        # İlk SKU'yu al (genelde 1 tane olur)
-        sku_id = sku_links[0]
-        product = self.client.get_sku_details(sku_id)
-
-        if not product:
-            return {
-                'status': 'bulunamadi',
-                'confidence': 0,
-                'sku_id': sku_id,
-                'product': None,
-                'tedarikci_kaydi_id': tedarikci_kaydi_id
-            }
+        fields = urun_record['fields']
+        sku_id = urun_record['id']
 
         # Context filtresi uygula
         if context_brand:
-            marka_links = product.get('Marka', [])
+            marka_links = fields.get('Marka', [])
             if not marka_links or marka_links[0] != context_brand:
                 return {
                     'status': 'bulunamadi',
                     'confidence': 0,
                     'sku_id': None,
-                    'product': None,
-                    'tedarikci_kaydi_id': None
+                    'product': None
                 }
 
         if context_category:
-            kategori = product.get('Kategori')
+            kategori = fields.get('Kategori')
             if kategori != context_category:
                 return {
                     'status': 'bulunamadi',
                     'confidence': 0,
                     'sku_id': None,
-                    'product': None,
-                    'tedarikci_kaydi_id': None
+                    'product': None
                 }
 
         return {
             'status': 'direkt',
             'confidence': 100,
             'sku_id': sku_id,
-            'product': self._format_product(product, sku_id),
-            'tedarikci_kaydi_id': tedarikci_kaydi_id
+            'product': self._format_product(fields, sku_id)
         }
 
     def _process_multiple_matches(
         self,
-        tedarikci_records: List[Dict],
+        urun_records: List[Dict],
         context_brand: Optional[str] = None,
         context_category: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Çoklu tedarikçi kaydını işle
+        Çoklu ürün kaydını işle
         Context varsa filtrele, yoksa tüm adayları döndür
 
         Args:
-            tedarikci_records: Bulunan tedarikçi kayıtları
+            urun_records: Bulunan ürün kayıtları
             context_brand: Marka filtresi
             context_category: Kategori filtresi
 
@@ -174,34 +147,24 @@ class BarcodeMatcher:
         """
         candidates = []
 
-        for record in tedarikci_records[:10]:  # İlk 10 aday
+        for record in urun_records[:10]:  # İlk 10 aday
             fields = record['fields']
-            sku_links = fields.get('Master_SKU', [])
-
-            if not sku_links:
-                continue
-
-            sku_id = sku_links[0]
-            product = self.client.get_sku_details(sku_id)
-
-            if not product:
-                continue
+            sku_id = record['id']
 
             # Context filtresi uygula
             if context_brand:
-                marka_links = product.get('Marka', [])
+                marka_links = fields.get('Marka', [])
                 if not marka_links or marka_links[0] != context_brand:
                     continue
 
             if context_category:
-                kategori = product.get('Kategori')
+                kategori = fields.get('Kategori')
                 if kategori != context_category:
                     continue
 
             candidates.append({
                 'sku_id': sku_id,
-                'product': self._format_product(product, sku_id),
-                'tedarikci_kaydi_id': record['id']
+                'product': self._format_product(fields, sku_id)
             })
 
         if not candidates:
@@ -209,8 +172,7 @@ class BarcodeMatcher:
                 'status': 'bulunamadi',
                 'confidence': 0,
                 'sku_id': None,
-                'product': None,
-                'tedarikci_kaydi_id': None
+                'product': None
             }
 
         if len(candidates) == 1:
@@ -220,8 +182,7 @@ class BarcodeMatcher:
                 'status': 'direkt',
                 'confidence': 95,
                 'sku_id': candidate['sku_id'],
-                'product': candidate['product'],
-                'tedarikci_kaydi_id': candidate['tedarikci_kaydi_id']
+                'product': candidate['product']
             }
 
         # Hala çoklu aday var - belirsiz
@@ -231,8 +192,7 @@ class BarcodeMatcher:
             'confidence': 80,
             'sku_id': first_candidate['sku_id'],
             'product': first_candidate['product'],
-            'candidates': candidates,
-            'tedarikci_kaydi_id': first_candidate['tedarikci_kaydi_id']
+            'candidates': candidates
         }
 
     def _fuzzy_search(
@@ -265,7 +225,7 @@ class BarcodeMatcher:
         matches = []
         for record in fuzzy_results:
             fields = record['fields']
-            stored_barcode = fields.get('Tedarikci_Barkodu', '')
+            stored_barcode = fields.get('Tedarikçi Barkodu', '')
 
             if len(stored_barcode) < 10:
                 continue
@@ -290,32 +250,22 @@ class BarcodeMatcher:
         for match in matches:
             record = match['record']
             fields = record['fields']
-            sku_links = fields.get('Master_SKU', [])
-
-            if not sku_links:
-                continue
-
-            sku_id = sku_links[0]
-            product = self.client.get_sku_details(sku_id)
-
-            if not product:
-                continue
+            sku_id = record['id']
 
             # Context kontrolü
             if context_brand:
-                marka_links = product.get('Marka', [])
+                marka_links = fields.get('Marka', [])
                 if not marka_links or marka_links[0] != context_brand:
                     continue
 
             if context_category:
-                kategori = product.get('Kategori')
+                kategori = fields.get('Kategori')
                 if kategori != context_category:
                     continue
 
             filtered_matches.append({
                 'sku_id': sku_id,
-                'product': self._format_product(product, sku_id),
-                'tedarikci_kaydi_id': record['id'],
+                'product': self._format_product(fields, sku_id),
                 'score': match['score']
             })
 
@@ -329,8 +279,7 @@ class BarcodeMatcher:
                 'status': 'direkt',
                 'confidence': result['score'],
                 'sku_id': result['sku_id'],
-                'product': result['product'],
-                'tedarikci_kaydi_id': result['tedarikci_kaydi_id']
+                'product': result['product']
             }
 
         # Çoklu sonuç
@@ -339,8 +288,7 @@ class BarcodeMatcher:
             'confidence': filtered_matches[0]['score'],
             'sku_id': filtered_matches[0]['sku_id'],
             'product': filtered_matches[0]['product'],
-            'candidates': filtered_matches,
-            'tedarikci_kaydi_id': filtered_matches[0]['tedarikci_kaydi_id']
+            'candidates': filtered_matches
         }
 
     def _format_product(self, product_fields: Dict, sku_id: str) -> Dict[str, Any]:
@@ -348,28 +296,29 @@ class BarcodeMatcher:
         Ürün bilgilerini frontend için formatla
 
         Args:
-            product_fields: Master_SKU fields
+            product_fields: Urun_Katalogu fields
             sku_id: SKU record ID
 
         Returns:
             Formatlanmış ürün bilgisi
         """
-        # Marka adını lookup'tan al
-        marka_adi = product_fields.get('Marka_Adi (from Marka)', [''])[0] if isinstance(
-            product_fields.get('Marka_Adi (from Marka)'), list
-        ) else product_fields.get('Marka_Adi (from Marka)', '')
+        # Marka adını lookup'tan al (YENİ: Lookup field adı değişmiş olabilir)
+        # Marka Adı artık lookup field olarak tanımlı
+        marka_adi = product_fields.get('Marka Adı', [''])[0] if isinstance(
+            product_fields.get('Marka Adı'), list
+        ) else product_fields.get('Marka Adı', '')
 
         return {
             'id': sku_id,
             'sku': product_fields.get('SKU', ''),
             'kategori': product_fields.get('Kategori', ''),
             'marka': marka_adi,
-            'model_kodu': product_fields.get('Model_Kodu', ''),
-            'model_adi': product_fields.get('Model_Adi', ''),
-            'renk_kodu': product_fields.get('Renk_Kodu', ''),
-            'renk_adi': product_fields.get('Renk_Adi', ''),
+            'model_kodu': product_fields.get('Model Kodu', ''),
+            'model_adi': product_fields.get('Model Adı', ''),
+            'renk_kodu': product_fields.get('Renk Kodu', ''),
+            'renk_adi': product_fields.get('Renk Adı', ''),
             'ekartman': product_fields.get('Ekartman', ''),
-            'birim_fiyat': product_fields.get('Birim_Fiyat', 0),
+            'birim_fiyat': product_fields.get('Birim Fiyat', 0),
             'durum': product_fields.get('Durum', 'Aktif')
         }
 
@@ -381,10 +330,20 @@ if __name__ == "__main__":
     try:
         from airtable_client import AirtableClient
 
-        client = AirtableClient()
+        # Kategori seç
+        print("Kategori seçin:")
+        print("1. OF - Optik Çerçeve")
+        print("2. GN - Güneş Gözlüğü")
+        print("3. LN - Lens")
+
+        choice = input("Seçim (1/2/3): ").strip()
+        category_map = {'1': 'OF', '2': 'GN', '3': 'LN'}
+        category = category_map.get(choice, 'OF')
+
+        client = AirtableClient(category=category)
         matcher = BarcodeMatcher(client)
 
-        print("OK: Matcher başlatıldı!")
+        print(f"\nOK: Matcher başlatıldı! (Kategori: {category})")
         print("\n📝 Test barkodu girin (veya 'q' ile çık):")
 
         while True:

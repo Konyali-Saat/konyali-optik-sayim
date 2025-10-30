@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(copy app.py app_OLD.py)",
+      "Bash(copy app_NEW.py app.py)",
+      "Bash(if [ -f .env ])",
+      "Bash(then grep AIRTABLE_TOKEN .env)",
+      "Bash(else echo \"No .env file\")",
+      "Bash(fi)",
+      "Bash(then cat .env)",
+      "Bash(else echo \"No backend/.env\")",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(timeout 15 python:*)",
+      "Bash(timeout 10 curl:*)",
+      "Bash(curl:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(timeout 3 sleep:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

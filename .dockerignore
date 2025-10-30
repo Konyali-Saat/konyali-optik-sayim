@@ -1,24 +1,55 @@
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
 *.so
-backend/.env
-backend/venv/
-backend/ENV/
-backend/env/
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+
+# Environment
+.env
+.env.local
+*.env
+venv/
+env/
+ENV/
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-.DS_Store
-Thumbs.db
-*.log
+*~
+
+# Git
 .git/
 .gitignore
+
+# Documentation
 README.md
-DEPLOYMENT.md
-GEMINI_PROMPT.md
 *.md
-docs/
+WORKSPACE_INFO.md
+
+# Test files
+backend/check_base_structure.py
+backend/get_base_schema.py
+check_excel.py
+pdf_to_excel.py
+pdf_to_excel_v2.py
+
+# Data files
+Tedarikçi Dosyaları/
+*.pdf
+*.xlsx
+*.xls
+
+# Claude artifacts
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

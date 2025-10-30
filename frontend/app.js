@@ -2,6 +2,11 @@
 const API_URL = window.location.origin;  // Aynı sunucu
 // const API_URL = 'http://localhost:5000';  // Local test için
 
+// ========== CATEGORY HELPER ==========
+function getSelectedCategory() {
+    return localStorage.getItem('selectedCategory') || 'OF';
+}
+
 // ========== STATE ==========
 let currentProduct = null;
 let currentBarcodeSearched = '';
@@ -9,7 +14,6 @@ let currentTedarikciKaydiId = null;
 let selectedCandidateId = null;
 let selectedTedarikciKaydiId = null;
 let contextBrand = null;
-let contextCategory = null;
 let allCandidates = [];
 let currentUser = null;  // Seçili kullanıcı/ekip
 
@@ -49,6 +53,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Liste dışı ürün fotoğraf önizlemesi
+    const unlistedPhotoInput = document.getElementById('unlistedPhoto');
+    if (unlistedPhotoInput) {
+        unlistedPhotoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const preview = document.getElementById('unlistedPhotoPreview');
+                    const previewImg = document.getElementById('unlistedPhotoPreviewImg');
+                    if (preview && previewImg) {
+                        previewImg.src = e.target.result;
+                        preview.style.display = 'block';
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
     // İstatistikleri yükle
     loadStats();
     loadBrands();
@@ -76,7 +100,8 @@ async function searchBarcode() {
             body: JSON.stringify({
                 barkod: barkod,
                 context_brand: contextBrand,
-                context_category: contextCategory
+                context_category: contextCategory,
+                category: getSelectedCategory()
             })
         });
 
@@ -120,7 +145,8 @@ async function manuelSearch() {
             body: JSON.stringify({
                 term: term,
                 context_brand: contextBrand,
-                context_category: contextCategory
+                context_category: contextCategory,
+                category: getSelectedCategory()
             })
         });
 
@@ -237,9 +263,9 @@ async function saveSelectedCandidate() {
         return;
     }
 
-    // Manuel arama sonucuysa barkod alanını doldur
+    // Manuel arama sonucuysa özel barkod formatı kullan
     if (!currentBarcodeSearched) {
-        currentBarcodeSearched = document.getElementById('manuelInput').value.trim() || 'manuel-arama';
+        currentBarcodeSearched = 'MANUEL-' + Date.now();
     }
 
     // Use enhanced save if available, fallback to basic
@@ -259,7 +285,7 @@ async function confirmAndSave() {
 
     // If barcode is empty, it's a manual search confirmation
     if (!currentBarcodeSearched) {
-        currentBarcodeSearched = document.getElementById('manuelInput').value.trim() || 'manuel'; // Use search term or 'manuel' as placeholder
+        currentBarcodeSearched = 'MANUEL-' + Date.now(); // Özel timestamp'li manuel kod
         eslesmeDurumu = 'Manuel';
     }
 
@@ -279,7 +305,8 @@ async function saveNotFound() {
     try {
         const payload = {
             barkod: currentBarcodeSearched,
-            eslesme_durumu: 'Bulunamadı'
+            eslesme_durumu: 'Bulunamadı',
+            category: getSelectedCategory()
         };
 
         // Context bilgileri
@@ -339,6 +366,7 @@ async function uploadPhoto(recordId, photoFile) {
         const formData = new FormData();
         formData.append('photo', photoFile);
         formData.append('record_id', recordId);
+        formData.append('category', getSelectedCategory());
 
         const response = await fetch(`${API_URL}/api/upload-photo`, {
             method: 'POST',
@@ -361,13 +389,21 @@ function removePhoto() {
     if (photoPreview) photoPreview.style.display = 'none';
 }
 
+function removeUnlistedPhoto() {
+    const photoInput = document.getElementById('unlistedPhoto');
+    const photoPreview = document.getElementById('unlistedPhotoPreview');
+    if (photoInput) photoInput.value = '';
+    if (photoPreview) photoPreview.style.display = 'none';
+}
+
 async function saveCount(skuId, eslesme, tedarikciKaydiId) {
     showLoading();
 
     try {
         const payload = {
             barkod: currentBarcodeSearched,
-            eslesme_durumu: eslesme
+            eslesme_durumu: eslesme,
+            category: getSelectedCategory()
         };
 
         // SKU ID (bulunamadı durumunda null)
@@ -548,20 +584,15 @@ function closeContextModal() {
 
 function applyContext() {
     const brand = document.getElementById('contextBrand').value;
-    const category = document.getElementById('contextCategory').value;
-
     contextBrand = brand || null;
-    contextCategory = category || null;
-
+    
     updateContextDisplay();
     closeContextModal();
 }
 
 function clearContext() {
     contextBrand = null;
-    contextCategory = null;
     document.getElementById('contextBrand').value = '';
-    document.getElementById('contextCategory').value = '';
     updateContextDisplay();
     closeContextModal();
 }
@@ -569,13 +600,12 @@ function clearContext() {
 function updateContextDisplay() {
     const btn = document.getElementById('contextText');
 
-    if (contextBrand || contextCategory) {
+    if (contextBrand) {
         const brandName = document.getElementById('contextBrand').selectedOptions[0]?.text || '';
-        const categoryName = document.getElementById('contextCategory').selectedOptions[0]?.text || '';
-        btn.textContent = `🎯 ${brandName} ${categoryName}`.trim();
+        btn.textContent = `🎯 ${brandName}`;
         document.querySelector('.btn-context').classList.add('active');
     } else {
-        btn.textContent = '🎯 Bağlam Seç';
+        btn.textContent = '🎯 Marka Seç';
         document.querySelector('.btn-context').classList.remove('active');
     }
 }
@@ -590,10 +620,11 @@ function showUnlistedProductForm() {
     // Marka listesini doldur
     populateUnlistedBrands();
 
-    // Bağlamdan kategori ve markayı otomatik seç
-    if (contextCategory) {
-        document.getElementById('unlistedKategori').value = contextCategory;
-    }
+    // Kategoriyi otomatik seç (sayfanın seçili kategorisinden)
+    const selectedCategory = getSelectedCategory();
+    document.getElementById('unlistedKategori').value = selectedCategory;
+
+    // Bağlamdan markayı otomatik seç (varsa)
     if (contextBrand) {
         document.getElementById('unlistedMarka').value = contextBrand;
     }
@@ -700,7 +731,8 @@ async function saveUnlistedProduct() {
             marka_id: markaId,
             model_kodu: modelKodu,
             renk_kodu: renkKodu,
-            ekartman: parseInt(ekartman)
+            ekartman: parseInt(ekartman),
+            category: getSelectedCategory()
         };
 
         // Optional fields
@@ -731,6 +763,12 @@ async function saveUnlistedProduct() {
         hideLoading();
 
         if (data.success) {
+            // Fotoğraf varsa upload et
+            const photoInput = document.getElementById('unlistedPhoto');
+            if (photoInput && photoInput.files.length > 0) {
+                await uploadPhoto(data.sayim_record_id, photoInput.files[0]);
+            }
+
             alert(`✅ Başarılı!\n\nYeni SKU oluşturuldu: ${data.sku}\n\nÜrün hem Master SKU'ya hem de sayım kayıtlarına eklendi.`);
 
             // Stats güncelle
@@ -752,7 +790,8 @@ async function saveUnlistedProduct() {
 // ========== LOAD DATA ==========
 async function loadStats() {
     try {
-        const response = await fetch(`${API_URL}/api/stats`);
+        const category = getSelectedCategory();
+        const response = await fetch(`${API_URL}/api/stats?category=${category}`);
         const data = await response.json();
 
         if (data.success) {
@@ -768,7 +807,8 @@ async function loadStats() {
 
 async function loadBrands() {
     try {
-        const response = await fetch(`${API_URL}/api/brands`);
+        const category = getSelectedCategory();
+        const response = await fetch(`${API_URL}/api/brands?category=${category}`);
         const data = await response.json();
 
         if (data.success) {
@@ -802,7 +842,6 @@ function getCategoryName(code) {
     const names = {
         'OF': 'Optik Çerçeve',
         'GN': 'Güneş Gözlüğü',
-        'CM': 'Gözlük Camı',
         'LN': 'Lens'
     };
     return names[code] || code || '-';

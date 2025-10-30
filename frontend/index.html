@@ -12,6 +12,15 @@
         <div class="header-content">
             <h1>📦 Konyalı Optik Sayım</h1>
             <div class="header-right">
+                <!-- Kategori Göstergesi -->
+                <div class="category-indicator" id="categoryIndicator" style="padding: 8px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; font-weight: bold; display: flex; align-items: center; gap: 8px; margin-right: 15px;">
+                    <span id="categoryIcon">📦</span>
+                    <span id="categoryName">-</span>
+                    <button onclick="changeCategoryConfirm()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 8px;">
+                        🔄 Değiştir
+                    </button>
+                </div>
+
                 <div class="user-select">
                     <select id="userSelect" onchange="changeUser()">
                         <option value="">👤 Kişi Seç</option>
@@ -32,7 +41,7 @@
         <!-- Context Selection -->
         <div class="context-bar" id="contextBar">
             <button class="btn-context" onclick="openContextModal()">
-                <span id="contextText">🎯 Bağlam Seç</span>
+                <span id="contextText">🎯 Marka Seç</span>
             </button>
         </div>
 
@@ -250,7 +259,6 @@
                         <option value="">Seçiniz...</option>
                         <option value="OF">Optik Çerçeve</option>
                         <option value="GN">Güneş Gözlüğü</option>
-                        <option value="CM">Gözlük Camı</option>
                         <option value="LN">Lens</option>
                     </select>
                 </div>
@@ -292,6 +300,21 @@
                 <div class="form-group">
                     <label>📦 UTS QR Kodu:</label>
                     <input type="text" id="unlistedUtsQr" placeholder="UTS QR kodunu okutun...">
+                </div>
+
+                <!-- Fotoğraf Upload -->
+                <div class="form-group">
+                    <label>📷 Ürün Fotoğrafı:</label>
+                    <input type="file" id="unlistedPhoto" accept="image/*" capture="environment" style="display: none;">
+                    <button class="btn-secondary" onclick="document.getElementById('unlistedPhoto').click()" type="button">
+                        📸 Fotoğraf Çek/Seç
+                    </button>
+                    <div id="unlistedPhotoPreview" style="display: none; margin-top: 10px;">
+                        <img id="unlistedPhotoPreviewImg" style="max-width: 100%; border-radius: 8px;">
+                        <button class="btn-small btn-cancel" onclick="removeUnlistedPhoto()" type="button" style="margin-top: 5px;">
+                            ✗ Kaldır
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Notlar -->
@@ -351,46 +374,29 @@
             </div>
         </div>
 
-        <!-- Leaderboard -->
-        <div class="leaderboard" id="leaderboard" style="display: none;">
-            <h3>🏆 BUGÜNÜN LİDERLERİ</h3>
-            <div id="leaderboardList">
-                <!-- Dinamik olarak doldurulacak -->
-            </div>
-            <div class="leaderboard-footer">
-                <span id="totalProgress">0 / 12,000</span>
-                <span class="progress-label">Toplam İlerleme</span>
-            </div>
-        </div>
+        <!-- Leaderboard kaldırıldı - Raporlama Airtable'da yapılacak -->
     </main>
 
     <!-- Context Modal -->
     <div id="contextModal" class="modal" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>🎯 Bağlam Seç</h2>
+                <h2>🎯 Marka Filtresi</h2>
                 <button class="modal-close" onclick="closeContextModal()">✕</button>
             </div>
 
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Marka:</label>
+                    <label>Marka Filtresi:</label>
                     <select id="contextBrand" style="max-height: 300px; overflow-y: auto;">
-                        <option value="">Tümü</option>
+                        <option value="">Tüm Markalar</option>
                         <!-- Dinamik olarak doldurulacak -->
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label>Kategori:</label>
-                    <select id="contextCategory">
-                        <option value="">Tümü</option>
-                        <option value="OF">Optik Çerçeve</option>
-                        <option value="GN">Güneş Gözlüğü</option>
-                        <option value="CM">Gözlük Camı</option>
-                        <option value="LN">Lens</option>
-                    </select>
-                </div>
+                <p style="color: #666; font-size: 13px; margin-top: 10px;">
+                    ℹ️ Sadece seçili markadaki ürünleri arayacaktır. Tüm markaları aramak için "Tüm Markalar" seçin.
+                </p>
             </div>
 
             <div class="modal-footer">
@@ -403,6 +409,90 @@
             </div>
         </div>
     </div>
+
+    <!-- Kategori Kontrolü ve Yönetimi -->
+    <script>
+        // Sayfa yüklendiğinde kategori kontrolü yap
+        window.addEventListener('DOMContentLoaded', function() {
+            const selectedCategory = localStorage.getItem('selectedCategory');
+
+            if (!selectedCategory) {
+                // Kategori seçilmemişse kategori seçim sayfasına yönlendir
+                window.location.href = 'category-selector.html';
+                return;
+            }
+
+            // Kategoriyi header'da göster
+            updateCategoryDisplay(selectedCategory);
+        });
+
+        // Kategori göstergesini güncelle
+        function updateCategoryDisplay(category) {
+            const categoryData = {
+                'OF': { name: 'Optik Çerçeve', icon: '👓', color: '#667eea' },
+                'GN': { name: 'Güneş Gözlüğü', icon: '🕶️', color: '#f59e0b' },
+                'LN': { name: 'Lens', icon: '👁️', color: '#10b981' }
+            };
+
+            const data = categoryData[category];
+            if (data) {
+                document.getElementById('categoryIcon').textContent = data.icon;
+                document.getElementById('categoryName').textContent = data.name;
+                document.getElementById('categoryIndicator').style.background =
+                    `linear-gradient(135deg, ${data.color} 0%, ${data.color}dd 100%)`;
+            }
+        }
+
+        // Kategori değiştirme - güvenlik mekanizmalı
+        function changeCategoryConfirm() {
+            const currentCategory = localStorage.getItem('selectedCategory');
+            const categoryData = {
+                'OF': 'Optik Çerçeve',
+                'GN': 'Güneş Gözlüğü',
+                'LN': 'Lens'
+            };
+
+            const confirmed = confirm(
+                `⚠️ KATEGORİ DEĞİŞTİRME UYARISI ⚠️\n\n` +
+                `Şu anda "${categoryData[currentCategory]}" kategorisinde çalışıyorsunuz.\n\n` +
+                `Kategori değiştirmek istediğinizden EMİN MİSİNİZ?\n\n` +
+                `Bu işlem:\n` +
+                `• Tüm bağlam ayarlarını sıfırlayacak\n` +
+                `• Yeni kategoriye geçecek\n` +
+                `• Yanlış kategori seçimi veri karışıklığına sebep olur!\n\n` +
+                `Devam etmek istiyor musunuz?`
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            // İkinci onay
+            const doubleConfirm = confirm(
+                `⚠️ SON ONAY ⚠️\n\n` +
+                `Bu işlemi GERİ ALAMAZSINIZ!\n\n` +
+                `Kategori değiştirmeye DEVAM etmek istiyor musunuz?`
+            );
+
+            if (!doubleConfirm) {
+                return;
+            }
+
+            // Kategoriyi sıfırla ve yeniden seçim sayfasına yönlendir
+            localStorage.removeItem('selectedCategory');
+            localStorage.removeItem('categorySelectedAt');
+            localStorage.removeItem('contextBrand');
+            localStorage.removeItem('contextCategory');
+
+            alert('✅ Kategori sıfırlandı. Şimdi yeni kategori seçebilirsiniz.');
+            window.location.href = 'category-selector.html';
+        }
+
+        // Seçili kategoriyi al (diğer fonksiyonlar için)
+        function getSelectedCategory() {
+            return localStorage.getItem('selectedCategory');
+        }
+    </script>
 
     <script src="app.js"></script>
 </body>
