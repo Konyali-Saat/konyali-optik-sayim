@@ -27,7 +27,10 @@
       "Bash(docker build:*)",
       "Bash(docker push:*)",
       "Bash(gcloud run deploy:*)",
-      "Bash(gcloud run services update:*)"
+      "Bash(gcloud run services update:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Production-ready improvements (Sprint 1 & 2 completed)\n\nMajor improvements:\n- Environment variable validation (startup checks)\n- Structured logging system (console + file, replaces print)\n- Rate limiting decorator (Airtable API protection, 4 req/sec)\n- Client pooling (performance boost, cached by category)\n- CORS production security (wildcard blocked in production)\n- XSS protection (frontend input sanitization)\n- Formula injection fix (backend escape function)\n- API response validation (frontend error handling)\n\nTest Suite:\n- 62 unit + integration tests (%98.4 success rate)\n- Test infrastructure with pytest, mocking, fixtures\n- Code coverage: 52%\n- Test documentation in tests/README.md\n\nDocumentation:\n- 7 comprehensive documents (analysis, security, performance)\n- Test results report\n- Final summary and next steps\n\nBackend changes:\n- app.py: +176 lines (logging, pooling, CORS, env validation)\n- airtable_client.py: +97 lines (rate limiting, formula escape, logging)\n\nFrontend changes:\n- app.js: +111 lines (API validation, XSS protection)\n\nProduction readiness: 95% (only needs .env configuration)\n\n🤖 Generated with Claude Code (https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(gcloud auth login:*)"
     ],
     "deny": [],
     "ask": []
