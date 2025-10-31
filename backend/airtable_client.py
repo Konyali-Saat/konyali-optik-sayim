@@ -262,13 +262,15 @@ class AirtableClient:
             term_lower = escape_formula_string(search_term.lower())
 
             # SEARCH fonksiyonu için boş olmayan alanlarda ara
+            # NOT: SEARCH() returns position (1-based) if found, 0 if not found
             search_conditions.append(
                 f"OR("
-                f"IF({{Model Kodu}}, SEARCH('{term_lower}', LOWER({{Model Kodu}})), 0), "
-                f"IF({{Model Adı}}, SEARCH('{term_lower}', LOWER({{Model Adı}})), 0), "
-                f"IF({{Renk Kodu}}, SEARCH('{term_lower}', LOWER({{Renk Kodu}})), 0), "
-                f"IF({{SKU}}, SEARCH('{term_lower}', LOWER({{SKU}})), 0), "
-                f"IF({{Arama Kelimeleri}}, SEARCH('{term_lower}', LOWER({{Arama Kelimeleri}})), 0)"
+                f"SEARCH('{term_lower}', LOWER({{Model Kodu}} & '')), "
+                f"SEARCH('{term_lower}', LOWER({{Model Adı}} & '')), "
+                f"SEARCH('{term_lower}', LOWER({{Renk Kodu}} & '')), "
+                f"SEARCH('{term_lower}', LOWER({{SKU}} & '')), "
+                f"SEARCH('{term_lower}', LOWER({{Arama Kelimeleri}} & '')), "
+                f"SEARCH('{term_lower}', LOWER({{Tedarikçi Barkodu}} & ''))"
                 f")"
             )
 
