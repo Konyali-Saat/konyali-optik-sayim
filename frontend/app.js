@@ -100,7 +100,6 @@ async function searchBarcode() {
             body: JSON.stringify({
                 barkod: barkod,
                 context_brand: contextBrand,
-                context_category: contextCategory,
                 category: getSelectedCategory()
             })
         });
@@ -145,7 +144,6 @@ async function manuelSearch() {
             body: JSON.stringify({
                 term: term,
                 context_brand: contextBrand,
-                context_category: contextCategory,
                 category: getSelectedCategory()
             })
         });
@@ -314,10 +312,6 @@ async function saveNotFound() {
             payload.context_brand = contextBrand;
         }
 
-        if (contextCategory) {
-            payload.context_category = contextCategory;
-        }
-
         // Notlar
         const notlar = document.getElementById('notesInput')?.value.trim();
         if (notlar) {
@@ -419,10 +413,6 @@ async function saveCount(skuId, eslesme, tedarikciKaydiId) {
         // Context bilgileri
         if (contextBrand) {
             payload.context_brand = contextBrand;
-        }
-
-        if (contextCategory) {
-            payload.context_category = contextCategory;
         }
 
         // Manuel arama terimi (varsa)

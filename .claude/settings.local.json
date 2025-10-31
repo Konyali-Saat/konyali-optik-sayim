@@ -15,7 +15,19 @@
       "Bash(timeout 10 curl:*)",
       "Bash(curl:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(timeout 3 sleep:*)"
+      "Bash(timeout 3 sleep:*)",
+      "Bash(gcloud --version:*)",
+      "Bash(docker --version:*)",
+      "Bash(gcloud config get-value:*)",
+      "Bash(where:*)",
+      "Read(//c/Users/selcu/AppData/Local/Google/Cloud SDK/google-cloud-sdk/**)",
+      "Bash(gcloud config:*)",
+      "Bash(export CLOUDSDK_PYTHON=\"C:\\Python314\\python.exe\")",
+      "Bash(gcloud auth configure-docker:*)",
+      "Bash(docker build:*)",
+      "Bash(docker push:*)",
+      "Bash(gcloud run deploy:*)",
+      "Bash(gcloud run services update:*)"
     ],
     "deny": [],
     "ask": []

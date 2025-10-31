@@ -11,7 +11,7 @@ echo ""
 # Configuration
 PROJECT_ID=${GCLOUD_PROJECT_ID:-"your-project-id"}
 SERVICE_NAME=${SERVICE_NAME:-"konyali-optik-sayim"}
-REGION=${REGION:-"europe-west1"}
+REGION=${REGION:-"europe-west2"}
 IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
 
 echo "Project ID: $PROJECT_ID"
