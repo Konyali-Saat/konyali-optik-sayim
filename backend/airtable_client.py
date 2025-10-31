@@ -369,9 +369,12 @@ class AirtableClient:
             today = datetime.now().strftime('%Y-%m-%d')
 
             # Bugün bu SKU için kaç adet sayıldı?
+            # NOT: Timestamp field'i Date tipinde ve "Timestamp" adında olmalı
             formula = f"AND(IS_SAME({{Timestamp}}, '{today}', 'day'), SEARCH('{sku_id}', ARRAYJOIN({{SKU}})))"
             records = self.sayim_kayitlari.all(formula=formula)
             count = len(records)
+            
+            logger.info(f"Stok güncelleme: {sku_id} için bugün {count} adet sayıldı")
 
             # Stok_Kalemleri tablosunda bu SKU var mı?
             stok_formula = f"SEARCH('{sku_id}', ARRAYJOIN({{SKU}}))"
@@ -380,16 +383,20 @@ class AirtableClient:
             if stok_records:
                 # Güncelle (ilk kaydı)
                 record_id = stok_records[0]['id']
+                current_mevcut = stok_records[0]['fields'].get('Mevcut_Miktar', 0)
+                
                 update_data = {
                     'Son_Sayim_Tarihi': today,
-                    'Son_Sayim_Miktari': count
+                    'Son_Sayim_Miktari': count,
+                    # Mevcut_Miktar'ı artır (her sayımda +1)
+                    'Mevcut_Miktar': current_mevcut + 1
                 }
                 # Konum belirtilmişse güncelle
                 if konum:
                     update_data['Konum'] = konum
 
                 self.stok_kalemleri.update(record_id, update_data)
-                logger.info(f"Stok güncellendi: {sku_id} → {count} adet")
+                logger.info(f"Stok güncellendi: {sku_id} → Mevcut: {current_mevcut + 1}, Bugün: {count}")
             else:
                 # Yeni oluştur
                 create_data = {
@@ -397,10 +404,10 @@ class AirtableClient:
                     'Konum': konum or 'Genel',
                     'Son_Sayim_Tarihi': today,
                     'Son_Sayim_Miktari': count,
-                    'Mevcut_Miktar': count  # İlk sayımda mevcut = sayılan
+                    'Mevcut_Miktar': 1  # İlk sayımda 1 adet
                 }
                 self.stok_kalemleri.create(create_data)
-                logger.info(f"Yeni stok kalemi oluşturuldu: {sku_id} → {count} adet")
+                logger.info(f"Yeni stok kalemi oluşturuldu: {sku_id} → 1 adet")
 
             return True
 

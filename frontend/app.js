@@ -388,6 +388,9 @@ async function saveNotFound() {
         if (contextBrand) {
             payload.context_brand = contextBrand;
         }
+        
+        // Bağlam kategori (her zaman gönder)
+        payload.context_category = getSelectedCategory();
 
         // Notlar
         const notlar = document.getElementById('notesInput')?.value.trim();
@@ -491,6 +494,9 @@ async function saveCount(skuId, eslesme, tedarikciKaydiId) {
         if (contextBrand) {
             payload.context_brand = contextBrand;
         }
+        
+        // Bağlam kategori (her zaman gönder)
+        payload.context_category = getSelectedCategory();
 
         // Manuel arama terimi (varsa)
         const manuelTerm = document.getElementById('manuelInput').value.trim();
