@@ -10,9 +10,65 @@ YENİ YAPI:
 from pyairtable import Api
 from typing import Optional, List, Dict, Any
 import os
+import logging
+import time
+from functools import wraps
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Logger setup
+logger = logging.getLogger(__name__)
+
+
+# ============= SECURITY HELPERS =============
+
+def escape_formula_string(s: str) -> str:
+    """
+    Escape string for safe use in Airtable formulas
+    Prevents formula injection attacks
+
+    Args:
+        s: Input string
+
+    Returns:
+        Escaped string safe for formula use
+    """
+    if not s:
+        return ''
+    # Escape single quotes and backslashes
+    return s.replace('\\', '\\\\').replace("'", "\\'").replace('"', '\\"')
+
+
+# ============= RATE LIMITING =============
+
+def rate_limit(max_per_second=4):
+    """
+    Decorator for rate limiting Airtable API calls
+
+    Airtable limits:
+    - 5 requests/second/base
+    - We use 4/second to be safe
+
+    Args:
+        max_per_second: Maximum requests per second (default: 4)
+    """
+    min_interval = 1.0 / max_per_second
+    last_called = [0.0]
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            elapsed = time.time() - last_called[0]
+            left_to_wait = min_interval - elapsed
+            if left_to_wait > 0:
+                logger.debug(f"Rate limiting: waiting {left_to_wait:.3f}s")
+                time.sleep(left_to_wait)
+            ret = func(*args, **kwargs)
+            last_called[0] = time.time()
+            return ret
+        return wrapper
+    return decorator
 
 
 class AirtableClient:
@@ -54,6 +110,7 @@ class AirtableClient:
 
     # ========== BARKOD ARAMA ==========
 
+    @rate_limit(max_per_second=4)
     def search_by_barcode(self, barkod: str) -> List[Dict[str, Any]]:
         """
         Urun_Katalogu tablosunda barkod ara
@@ -66,16 +123,18 @@ class AirtableClient:
         """
         try:
             # Barkodu hem metin hem de sayı olarak aramayı dene
-            formula = f"{{Tedarikçi Barkodu}} = '{barkod}'"
+            safe_barkod = escape_formula_string(barkod)
+            formula = f"{{Tedarikçi Barkodu}} = '{safe_barkod}'"
             if barkod.isnumeric():
-                formula = f"OR({{Tedarikçi Barkodu}} = '{barkod}', {{Tedarikçi Barkodu}} = {barkod})"
+                formula = f"OR({{Tedarikçi Barkodu}} = '{safe_barkod}', {{Tedarikçi Barkodu}} = {barkod})"
 
             results = self.urun_katalogu.all(formula=formula)
             return results
         except Exception as e:
-            print(f"HATA: Barkod arama hatası: {e}")
+            logger.error("Barkod arama hatası", extra={'barkod': barkod, 'error': str(e)})
             return []
 
+    @rate_limit(max_per_second=4)
     def fuzzy_search_barcode(self, barkod: str, min_length: int = 10) -> List[Dict[str, Any]]:
         """
         Fuzzy arama - barkodun ilk N hanesine göre ara
@@ -92,12 +151,13 @@ class AirtableClient:
 
         try:
             partial = barkod[:min_length]
+            safe_partial = escape_formula_string(partial)
             # FIND() fonksiyonu ile kısmi eşleşme
-            formula = f"FIND('{partial}', {{Tedarikçi Barkodu}}) = 1"
+            formula = f"FIND('{safe_partial}', {{Tedarikçi Barkodu}}) = 1"
             results = self.urun_katalogu.all(formula=formula)
             return results
         except Exception as e:
-            print(f"HATA: Fuzzy arama hatası: {e}")
+            logger.error("Fuzzy arama hatası", extra={'barkod': barkod, 'error': str(e)})
             return []
 
     # ========== SKU İŞLEMLERİ ==========
@@ -116,9 +176,10 @@ class AirtableClient:
             record = self.urun_katalogu.get(sku_record_id)
             return record['fields']
         except Exception as e:
-            print(f"HATA: SKU detay hatası: {e}")
+            logger.error("SKU detay hatası", extra={'sku_record_id': sku_record_id, 'error': str(e)})
             return None
 
+    @rate_limit(max_per_second=4)
     def create_new_sku(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Urun_Katalogu tablosuna yeni ürün ekle (liste dışı ürünler için)
@@ -168,12 +229,13 @@ class AirtableClient:
                 'data': record['fields']
             }
         except Exception as e:
-            print(f"HATA: Yeni SKU oluşturma hatası: {e}")
+            logger.error("Yeni SKU oluşturma hatası", extra={'data': data, 'error': str(e)})
             return {
                 'success': False,
                 'error': str(e)
             }
 
+    @rate_limit(max_per_second=4)
     def search_sku_by_term(
         self,
         search_term: str,
@@ -197,7 +259,7 @@ class AirtableClient:
             search_conditions = []
 
             # Arama terimi - birden fazla alanda ara (case-insensitive)
-            term_lower = search_term.lower().replace("'", "\\'")
+            term_lower = escape_formula_string(search_term.lower())
 
             # SEARCH fonksiyonu için boş olmayan alanlarda ara
             search_conditions.append(
@@ -225,11 +287,12 @@ class AirtableClient:
             return results
 
         except Exception as e:
-            print(f"HATA: Manuel arama hatası: {e}")
+            logger.error("Manuel arama hatası", extra={'search_term': search_term, 'error': str(e)})
             return []
 
     # ========== SAYIM KAYDI ==========
 
+    @rate_limit(max_per_second=4)
     def create_sayim_record(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Sayim_Kayitlari tablosuna yeni kayıt ekle
@@ -255,7 +318,7 @@ class AirtableClient:
                 'data': record['fields']
             }
         except Exception as e:
-            print(f"HATA: Sayım kaydı oluşturma hatası: {e}")
+            logger.error("Sayım kaydı oluşturma hatası", extra={'error': str(e)})
             return {
                 'success': False,
                 'error': str(e)
@@ -280,7 +343,7 @@ class AirtableClient:
                 'data': record['fields']
             }
         except Exception as e:
-            print(f"HATA: Sayım kaydı güncelleme hatası: {e}")
+            logger.error("Sayım kaydı güncelleme hatası", extra={'record_id': record_id, 'error': str(e)})
             return {
                 'success': False,
                 'error': str(e)
@@ -324,7 +387,7 @@ class AirtableClient:
                     update_data['Konum'] = konum
 
                 self.stok_kalemleri.update(record_id, update_data)
-                print(f"Stok güncellendi: {sku_id} → {count} adet")
+                logger.info(f"Stok güncellendi: {sku_id} → {count} adet")
             else:
                 # Yeni oluştur
                 create_data = {
@@ -335,12 +398,12 @@ class AirtableClient:
                     'Mevcut_Miktar': count  # İlk sayımda mevcut = sayılan
                 }
                 self.stok_kalemleri.create(create_data)
-                print(f"Yeni stok kalemi oluşturuldu: {sku_id} → {count} adet")
+                logger.info(f"Yeni stok kalemi oluşturuldu: {sku_id} → {count} adet")
 
             return True
 
         except Exception as e:
-            print(f"HATA: Stok güncelleme hatası: {e}")
+            logger.error("Stok güncelleme hatası", extra={'sku_id': sku_id, 'error': str(e)})
             return False
 
     # ========== İSTATİSTİKLER ==========
@@ -382,7 +445,7 @@ class AirtableClient:
             }
 
         except Exception as e:
-            print(f"HATA: İstatistik hatası: {e}")
+            logger.error("İstatistik hatası", extra={'error': str(e)})
             return {
                 'total': 0,
                 'direkt': 0,
@@ -421,7 +484,7 @@ class AirtableClient:
             return brands
 
         except Exception as e:
-            print(f"HATA: Marka listesi hatası: {e}")
+            logger.error("Marka listesi hatası", extra={'error': str(e)})
             return []
 
     # ========== YARDIMCI FONKSİYONLAR ==========
@@ -438,7 +501,7 @@ class AirtableClient:
             self.markalar.first()
             return True
         except Exception as e:
-            print(f"HATA: Health check başarısız: {e}")
+            logger.error("Health check başarısız", extra={'error': str(e)})
             return False
 
 

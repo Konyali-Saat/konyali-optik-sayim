@@ -2,6 +2,67 @@
 const API_URL = window.location.origin;  // Aynı sunucu
 // const API_URL = 'http://localhost:5000';  // Local test için
 
+// ========== API HELPER WITH VALIDATION ==========
+/**
+ * Standardized API request wrapper with validation
+ *
+ * @param {string} endpoint - API endpoint (e.g., '/api/search-barcode')
+ * @param {object} options - Fetch options (method, body, etc.)
+ * @returns {Promise<object>} - Parsed JSON response
+ * @throws {Error} - On network or validation errors
+ */
+async function apiRequest(endpoint, options = {}) {
+    try {
+        const response = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
+        });
+
+        // Check HTTP status
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ error: 'Network error' }));
+            throw new Error(error.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // Parse JSON
+        const data = await response.json();
+
+        // Validate response structure
+        if (data === null || data === undefined) {
+            throw new Error('Empty response from server');
+        }
+
+        return data;
+
+    } catch (error) {
+        console.error(`❌ API Error [${endpoint}]:`, error);
+
+        // User-friendly error message
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            throw new Error('Sunucuya bağlanılamadı. Lütfen bağlantınızı kontrol edin.');
+        }
+
+        throw error;
+    }
+}
+
+// ========== SECURITY HELPERS ==========
+
+/**
+ * XSS Protection - Sanitize user input for display
+ * @param {string} str - User input string
+ * @returns {string} - Sanitized string safe for innerHTML
+ */
+function sanitizeHTML(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 // ========== CATEGORY HELPER ==========
 function getSelectedCategory() {
     return localStorage.getItem('selectedCategory') || 'OF';
@@ -94,9 +155,8 @@ async function searchBarcode() {
     showLoading();
 
     try {
-        const response = await fetch(`${API_URL}/api/search-barcode`, {
+        const data = await apiRequest('/api/search-barcode', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 barkod: barkod,
                 context_brand: contextBrand,
@@ -104,15 +164,25 @@ async function searchBarcode() {
             })
         });
 
-        const data = await response.json();
         hideLoading();
+
+        // Validate response structure
+        if (typeof data.found === 'undefined') {
+            throw new Error('Invalid response: missing "found" field');
+        }
 
         if (data.found) {
             currentTedarikciKaydiId = data.tedarikci_kaydi_id;
 
             if (data.status === 'direkt') {
+                if (!data.product) {
+                    throw new Error('Invalid response: missing product data');
+                }
                 showSuccessResult(data.product, data.confidence);
             } else if (data.status === 'belirsiz') {
+                if (!Array.isArray(data.candidates)) {
+                    throw new Error('Invalid response: candidates must be an array');
+                }
                 showMultipleResults(data.candidates);
             }
         } else {
@@ -121,8 +191,8 @@ async function searchBarcode() {
 
     } catch (error) {
         hideLoading();
-        console.error('❌ Bağlantı hatası:', error);
-        alert('Bağlantı hatası: ' + error.message);
+        console.error('❌ Barkod arama hatası:', error);
+        alert('Hata: ' + error.message);
     }
 }
 
@@ -138,9 +208,8 @@ async function manuelSearch() {
     showLoading();
 
     try {
-        const response = await fetch(`${API_URL}/api/search-manual`, {
+        const data = await apiRequest('/api/search-manual', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 term: term,
                 context_brand: contextBrand,
@@ -148,10 +217,18 @@ async function manuelSearch() {
             })
         });
 
-        const data = await response.json();
         hideLoading();
 
+        // Validate response
+        if (typeof data.found === 'undefined' || typeof data.count === 'undefined') {
+            throw new Error('Invalid response: missing required fields');
+        }
+
         if (data.found) {
+            if (!Array.isArray(data.products)) {
+                throw new Error('Invalid response: products must be an array');
+            }
+
             if (data.count === 1) {
                 currentTedarikciKaydiId = null; // Manuel aramada tedarikçi kaydı yok
                 showSuccessResult(data.products[0], 90);
@@ -171,7 +248,7 @@ async function manuelSearch() {
     } catch (error) {
         hideLoading();
         console.error('❌ Manuel arama hatası:', error);
-        alert('Bağlantı hatası: ' + error.message);
+        alert('Hata: ' + error.message);
     }
 }
 
@@ -781,8 +858,12 @@ async function saveUnlistedProduct() {
 async function loadStats() {
     try {
         const category = getSelectedCategory();
-        const response = await fetch(`${API_URL}/api/stats?category=${category}`);
-        const data = await response.json();
+        const data = await apiRequest(`/api/stats?category=${category}`);
+
+        if (!data.success || !data.stats) {
+            console.warn('Invalid stats response');
+            return;
+        }
 
         if (data.success) {
             document.getElementById('todayCount').textContent = data.stats.total;
@@ -798,8 +879,12 @@ async function loadStats() {
 async function loadBrands() {
     try {
         const category = getSelectedCategory();
-        const response = await fetch(`${API_URL}/api/brands?category=${category}`);
-        const data = await response.json();
+        const data = await apiRequest(`/api/brands?category=${category}`);
+
+        if (!data.success || !Array.isArray(data.brands)) {
+            console.warn('Invalid brands response');
+            return;
+        }
 
         if (data.success) {
             // Global değişkene kaydet (unlisted product form için)

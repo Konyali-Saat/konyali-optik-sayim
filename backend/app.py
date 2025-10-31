@@ -13,6 +13,8 @@ from flask_cors import CORS
 from airtable_client import AirtableClient
 from matcher import BarcodeMatcher
 import os
+import sys
+import logging
 from dotenv import load_dotenv
 from datetime import datetime
 from werkzeug.utils import secure_filename
@@ -20,33 +22,158 @@ import base64
 
 load_dotenv()
 
+
+# ============= LOGGING SETUP =============
+
+def setup_logging():
+    """
+    Logging sistemini yapılandır
+
+    - Console ve file output
+    - Structured logging format
+    - Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    """
+    log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+    log_file = os.getenv('LOG_FILE', 'app.log')
+
+    # Format
+    log_format = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # Root logger
+    logger = logging.getLogger()
+    logger.setLevel(getattr(logging, log_level, logging.INFO))
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(log_format)
+    logger.addHandler(console_handler)
+
+    # File handler
+    try:
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(log_format)
+        logger.addHandler(file_handler)
+    except Exception as e:
+        print(f"⚠️  Log dosyası oluşturulamadı: {e}")
+
+    return logger
+
+
+# Initialize logger
+logger = setup_logging()
+
+
+# ============= ENVIRONMENT VALIDATION =============
+
+def validate_env_vars():
+    """
+    Startup'ta tüm environment variables'ı kontrol et
+
+    Eksik değişkenler varsa kullanıcıya bilgi ver ve uygulamayı durdur.
+    """
+    required = {
+        'AIRTABLE_TOKEN': os.getenv('AIRTABLE_TOKEN'),
+        'AIRTABLE_BASE_OPTIK': os.getenv('AIRTABLE_BASE_OPTIK'),
+        'AIRTABLE_BASE_GUNES': os.getenv('AIRTABLE_BASE_GUNES'),
+        'AIRTABLE_BASE_LENS': os.getenv('AIRTABLE_BASE_LENS')
+    }
+
+    missing = [k for k, v in required.items() if not v]
+
+    if missing:
+        print("\n" + "="*60)
+        print("❌ HATA: Eksik Environment Variables")
+        print("="*60)
+        for var in missing:
+            print(f"   - {var}")
+        print("\n💡 Çözüm:")
+        print("   1. Backend klasöründe .env dosyası oluşturun")
+        print("   2. Gerekli değişkenleri ekleyin:")
+        print("      AIRTABLE_TOKEN=your_token_here")
+        print("      AIRTABLE_BASE_OPTIK=your_base_id_here")
+        print("      AIRTABLE_BASE_GUNES=your_base_id_here")
+        print("      AIRTABLE_BASE_LENS=your_base_id_here")
+        print("\n📚 Daha fazla bilgi için: README.md")
+        print("="*60 + "\n")
+        sys.exit(1)
+
+    print("\n✅ Environment variables doğrulandı")
+    print(f"   - AIRTABLE_TOKEN: {'*' * 20} (set)")
+    print(f"   - AIRTABLE_BASE_OPTIK: {required['AIRTABLE_BASE_OPTIK'][:10]}... (set)")
+    print(f"   - AIRTABLE_BASE_GUNES: {required['AIRTABLE_BASE_GUNES'][:10]}... (set)")
+    print(f"   - AIRTABLE_BASE_LENS: {required['AIRTABLE_BASE_LENS'][:10]}... (set)")
+    print()
+
 # Frontend path (backend klasöründen bir üst klasördeki frontend)
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend')
 
 app = Flask(__name__, static_folder=FRONTEND_DIR)
 
-# CORS ayarları
-allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
+# CORS ayarları - Production Security
+allowed_origins_raw = os.getenv('ALLOWED_ORIGINS', '*')
+allowed_origins = [origin.strip() for origin in allowed_origins_raw.split(',')]
+
+# Production environment check
+flask_env = os.getenv('FLASK_ENV', 'development')
+if flask_env == 'production' and '*' in allowed_origins:
+    logger.error("❌ SECURITY ERROR: ALLOWED_ORIGINS='*' is not allowed in production!")
+    logger.error("   Set specific origins in .env file:")
+    logger.error("   ALLOWED_ORIGINS=https://yourdomain.com,https://admin.yourdomain.com")
+    sys.exit(1)
+
 CORS(app, origins=allowed_origins)
+logger.info(f"CORS configured for origins: {allowed_origins}")
 
 
-# ============= CATEGORY-BASED CLIENT FACTORY =============
+# ============= CATEGORY-BASED CLIENT FACTORY WITH POOLING =============
+
+# Client pool - cache clients by category
+_client_pool = {}
+_pool_lock = None  # For thread safety (optional)
+
 
 def get_airtable_client(category: str = 'OF') -> AirtableClient:
     """
-    Kategoriye göre Airtable client döndür
+    Kategoriye göre Airtable client döndür (cached)
+
+    Client pooling kullanılarak aynı kategoriye yapılan isteklerde
+    mevcut client yeniden kullanılır, performans artar.
 
     Args:
         category: 'OF' (Optik) | 'GN' (Güneş) | 'LN' (Lens)
 
     Returns:
-        AirtableClient instance
+        AirtableClient instance (cached)
     """
+    # Check if client already exists in pool
+    if category in _client_pool:
+        logger.debug(f"Using cached client for category: {category}")
+        return _client_pool[category]
+
+    # Create new client and add to pool
     try:
-        return AirtableClient(category=category)
+        logger.info(f"Creating new Airtable client for category: {category}")
+        client = AirtableClient(category=category)
+        _client_pool[category] = client
+        return client
     except Exception as e:
-        print(f"HATA: Category '{category}' için Airtable client oluşturulamadı: {e}")
+        logger.error(f"Category '{category}' için Airtable client oluşturulamadı",
+                    extra={'category': category, 'error': str(e)})
         raise
+
+
+def clear_client_pool():
+    """
+    Client pool'u temizle (testing veya reset için)
+    """
+    global _client_pool
+    _client_pool = {}
+    logger.info("Client pool cleared")
 
 
 def get_matcher(category: str = 'OF') -> BarcodeMatcher:
@@ -107,7 +234,7 @@ def health_check():
             client = get_airtable_client(cat)
             categories_health[cat] = client.health_check()
         except Exception as e:
-            print(f"Health check failed for {cat}: {e}")
+            logger.warning(f"Health check failed for category {cat}", extra={'category': cat, 'error': str(e)})
             categories_health[cat] = False
 
     all_healthy = all(categories_health.values())
@@ -163,7 +290,7 @@ def search_barcode():
             'candidates': result.get('candidates', [])
         })
     except Exception as e:
-        print(f"HATA: Barkod arama hatası: {e}")
+        logger.error("Barkod arama hatası", extra={'barkod': barkod, 'category': category, 'error': str(e)})
         return jsonify({'error': f'Arama hatası: {str(e)}'}), 500
 
 
@@ -239,7 +366,8 @@ def save_count():
                 try:
                     client.update_stok_from_sayim(sku_id)
                 except Exception as e:
-                    print(f"Stok güncelleme hatası (devam ediliyor): {e}")
+                    logger.warning("Stok güncelleme hatası (devam ediliyor)",
+                                 extra={'sku_id': sku_id, 'error': str(e)})
                     # Stok güncellemesi başarısız olsa bile sayım kaydı başarılı
 
             return jsonify({
@@ -253,7 +381,7 @@ def save_count():
             }), 500
 
     except Exception as e:
-        print(f"HATA: Sayım kaydı kaydetme hatası: {e}")
+        logger.error("Sayım kaydı kaydetme hatası", extra={'category': category, 'error': str(e)})
         return jsonify({'error': str(e)}), 500
 
 
@@ -319,7 +447,7 @@ def search_manual():
         })
 
     except Exception as e:
-        print(f"HATA: Manuel arama hatası: {e}")
+        logger.error("Manuel arama hatası", extra={'term': term, 'category': category, 'error': str(e)})
         return jsonify({'error': str(e)}), 500
 
 
@@ -362,7 +490,7 @@ def get_brands():
             'brands': brands
         })
     except Exception as e:
-        print(f"HATA: Marka listesi hatası: {e}")
+        logger.error("Marka listesi hatası", extra={'category': category, 'error': str(e)})
         return jsonify({
             'success': False,
             'error': str(e)
@@ -407,7 +535,7 @@ def get_stats():
             'stats': stats
         })
     except Exception as e:
-        print(f"HATA: İstatistik hatası: {e}")
+        logger.error("İstatistik hatası", extra={'category': category, 'error': str(e)})
         return jsonify({
             'success': False,
             'error': str(e)
@@ -465,7 +593,7 @@ def upload_photo():
         })
 
     except Exception as e:
-        print(f"HATA: Fotoğraf yükleme hatası: {e}")
+        logger.error("Fotoğraf yükleme hatası", extra={'record_id': record_id, 'error': str(e)})
         return jsonify({
             'success': False,
             'error': str(e)
@@ -570,7 +698,7 @@ def save_unlisted_product():
         })
 
     except Exception as e:
-        print(f"HATA: Liste dışı ürün kaydetme hatası: {e}")
+        logger.error("Liste dışı ürün kaydetme hatası", extra={'barkod': barkod, 'error': str(e)})
         return jsonify({
             'success': False,
             'error': str(e)
@@ -597,21 +725,23 @@ def server_error(e):
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Genel hata yakalayıcı"""
-    print(f"HATA: Beklenmeyen hata: {e}")
+    logger.exception("Beklenmeyen hata", extra={'error': str(e)})
     return jsonify({'error': 'Beklenmeyen hata oluştu'}), 500
 
 
 # ============= MAIN =============
 
 if __name__ == '__main__':
+    print(f"\nKonyali Optik Sayim Sistemi - v2.0")
+    print(f"Çoklu Workspace Desteği Aktif")
+    print("="*60)
+
+    # Environment validation (startup check)
+    validate_env_vars()
+
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
 
-    print(f"\nKonyali Optik Sayim Sistemi - v2.0")
-    print(f"Çoklu Workspace Desteği Aktif")
-    print(f"Port: {port}")
-    print(f"Debug: {debug}")
-    print(f"CORS: {allowed_origins}")
-    print(f"\nSunucu baslatiliyor...\n")
+    logger.info(f"Sunucu başlatılıyor - Port: {port}, Debug: {debug}, CORS: {allowed_origins}")
 
     app.run(host='0.0.0.0', port=port, debug=debug)
